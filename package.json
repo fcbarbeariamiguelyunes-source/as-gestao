@@ -1,0 +1,22 @@
+{
+  "name": "as-gestao",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "deploy": "wrangler deploy"
+  },
+  "dependencies": {
+    "@vitejs/plugin-react": "latest",
+    "vite": "latest",
+    "react": "latest",
+    "react-dom": "latest",
+    "hono": "latest"
+  },
+  "devDependencies": {
+    "wrangler": "latest",
+    "typescript": "latest"
+  }
+}

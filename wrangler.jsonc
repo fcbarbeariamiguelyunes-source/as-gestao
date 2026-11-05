@@ -1,0 +1,16 @@
+{
+  "name": "as-gestao",
+  "main": "worker/index.js",
+  "compatibility_date": "2026-11-05",
+  "assets": {
+    "directory": "./dist",
+    "binding": "ASSETS"
+  },
+  "d1_databases": [
+    {
+      "binding": "DB",
+      "database_name": "as-gestao-db",
+      "database_id": "COLOCAR_ID_DO_D1"
+    }
+  ]
+}

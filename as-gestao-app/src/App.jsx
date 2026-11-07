@@ -1,425 +1,136 @@
 import { useState, useEffect } from 'react'
+import { useNuvem } from './useNuvem'
 import './App.css'
 
-// ===== CONSTANTES =====
-
-const menuAdmin = [
-  'Visão Geral SaaS',
-  'Licenças & Testes',
-  'Barbearias SaaS',
-  'Vistoria & Auditoria',
-  'Campeonatos Regionais'
-]
-
-const menuDono = [
-  'Visão Geral',
-  'Unidades & Equipe',
-  'Lançamento de Vendas',
-  'Metas & Premiações',
-  '🏆 Rankings & Competições'
-]
-
-const menuBarbeiro = [
-  'Meu Desempenho',
-  'Minhas Metas',
-  '🏆 Ranking da Minha Unidade'
-]
-
-const ADMIN_LOGIN = 'Adriel2711'
-const ADMIN_SENHA = 'Giovana2711@'
-
-const NIVEIS = [
-  { chave: 'bronze', icone: '🥉', nome: 'Bronze', cor: '#cd7f32' },
-  { chave: 'prata', icone: '🥈', nome: 'Prata', cor: '#c0c0c0' },
-  { chave: 'ouro', icone: '🥇', nome: 'Ouro', cor: '#C6A15B' }
-]
-
-const METAS_PADRAO = {
-  bronze: { tipo: 'valor', meta: 1000000, premio: 'Folga' },
-  prata: { tipo: 'valor', meta: 2000000, premio: 'Bônus' },
-  ouro: { tipo: 'valor', meta: 3000000, premio: 'Super Prêmio' }
-}
-
-const carregar = (chave, padrao) => {
-  try {
-    const salvo = localStorage.getItem(chave)
-    return salvo ? JSON.parse(salvo) : padrao
-  } catch {
-    return padrao
-  }
-}
-
-const proximoId = (lista) =>
-  lista.length ? Math.max(...lista.map(i => i.id)) + 1 : 1
-
-const formatarReais = (centavos) =>
-  (centavos / 100).toLocaleString('pt-BR', {
-    style: 'currency',
-    currency: 'BRL'
-  })
-
-const progressoMeta = (faturamento, meta, totalRede) => {
-  if (!meta || !meta.meta) return 0
-
-  const atual = meta.tipo === 'porcentagem'
-    ? (totalRede > 0 ? (faturamento / totalRede) * 100 : 0)
-    : faturamento
-
-  return Math.min(100, (atual / meta.meta) * 100)
-}
-
-const rotuloMeta = (meta) => {
-  if (!meta) return '-'
-
-  return meta.tipo === 'porcentagem'
-    ? `${meta.meta}% do faturamento da rede`
-    : formatarReais(meta.meta)
-}
-
-const BarraProgresso = ({ pct, altura = 10 }) => (
-  <div className="progress" style={{ height: altura }}>
-    <div
-      className="progress-fill"
-      style={{
-        width: `${Math.min(100, Math.max(0, pct))}%`,
-        background: pct >= 100 ? '#34d399' : '#dc2626'
-      }}
-    />
-  </div>
-)
+const menuAdmin = ['Visão Geral SaaS', 'Licenças & Testes', 'Barbearias SaaS', 'Vistoria & Auditoria', 'Campeonatos Regionais']
+const menuDono = ['Visão Geral', 'Unidades & Equipe', 'Lançamento de Vendas', 'Metas & Premiações', '🏆 Rankings & Competições']
+const menuBarbeiro = ['Meu Desempenho', 'Minhas Metas', '🏆 Ranking da Minha Unidade']
 
 export default function App() {
-
-  // ===== LOGIN =====
-
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [perfilAtivo, setPerfilAtivo] = useState('dono')
+
   const [usuario, setUsuario] = useState({ login: '', senha: '' })
   const [erroLogin, setErroLogin] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [abaAtiva, setAbaAtiva] = useState(0)
+  const [abaAtiva, setAbaAtiva] = useState(1)
 
+  const [unidadeFiltroRanking, setUnidadeFiltroRanking] = useState('TODAS')
+
+  // ===== DADOS NA NUVEM (Firebase) =====
+  const [barbeariasSaaS, setBarbeariasSaaS, ok1] = useNuvem('barbearias_saas', [
+    { id: 1, nome: 'Barbearia Mestre', usuarioDono: 'dono', senhaDono: '123456', plano: 'Teste Grátis', diasRestantes: 7, statusPagamento: 'Pendente', statusSaaS: 'Em Teste' },
+    { id: 2, nome: 'Imperial Barber', usuarioDono: 'imperial', senhaDono: '123456', plano: 'Anual Pro', diasRestantes: 330, statusPagamento: 'Pago', statusSaaS: 'Ativo' }
+  ])
+
+  const [campeonatosRegionais, setCampeonatosRegionais, ok2] = useNuvem('campeonatos_regionais', [
+    { id: 1, titulo: 'Batalha de Barbeiros - Regional SP', status: 'Em Andamento', premio: 'Troféu Ouro + Viagem', ativo: true }
+  ])
+
+  const [unidades, setUnidades, ok3] = useNuvem('unidades', [
+    { id: 1, nome: 'Unidade Centro', status: 'Ativa', gerente: 'Carlos' },
+    { id: 2, nome: 'Unidade Shopping', status: 'Ativa', gerente: 'Mariana' }
+  ])
+
+  const [barbeiros, setBarbeiros, ok4] = useNuvem('barbeiros', [
+    { id: 1, nome: 'Carlos Silva', telefone: '11988881111', senha: '123', unidade: 'Unidade Centro', faturamento: 1850000 },
+    { id: 2, nome: 'Marcos Souza', telefone: '11977772222', senha: '123', unidade: 'Unidade Centro', faturamento: 1420000 },
+    { id: 3, nome: 'Mariana Santos', telefone: '11966663333', senha: '123', unidade: 'Unidade Shopping', faturamento: 2100000 }
+  ])
+
+  const [metasColetivas, setMetasColetivas, ok5] = useNuvem('metas_coletivas', {
+    bronze: { objetivo: 4000000, premio: 'Churrasco da Equipe' },
+    prata: { objetivo: 7000000, premio: 'Churrasco + R$ 300 em Bônus para cada' },
+    ouro: { objetivo: 10000000, premio: 'Churrasco + R$ 600 em Bônus + Troféu Ouro' }
+  })
+
+  const [metasIndividuaisPorBarbeiro, setMetasIndividuaisPorBarbeiro, ok6] = useNuvem('metas_tres_individuais', {
+    1: {
+      bronze: { tipo: 'valor', meta: 1000000, premio: 'Folga Extra' },
+      prata: { tipo: 'valor', meta: 2000000, premio: 'Bônus 10%' },
+      ouro: { tipo: 'valor', meta: 3000000, premio: 'Viagem e Troféu' }
+    },
+    2: {
+      bronze: { tipo: 'porcentagem', meta: 10, premio: 'Vale Produto' },
+      prata: { tipo: 'porcentagem', meta: 20, premio: 'Bônus Extra' },
+      ouro: { tipo: 'porcentagem', meta: 35, premio: 'Premiação Máxima' }
+    },
+    3: {
+      bronze: { tipo: 'valor', meta: 1200000, premio: 'Folga' },
+      prata: { tipo: 'valor', meta: 2200000, premio: 'Bônus' },
+      ouro: { tipo: 'valor', meta: 3500000, premio: 'Super Prêmio' }
+    }
+  })
+
+  // ===== ESTADOS LOCAIS (não precisam ir para a nuvem) =====
+  const [novaBarbeariaSaaS, setNovaBarbeariaSaaS] = useState({ nome: '', usuarioDono: '', senhaDono: '', plano: 'Teste Grátis (7 Dias)' })
+  const [novoCampRegional, setNovoCampRegional] = useState({ titulo: '', premio: '' })
   const [barbeariaLogada, setBarbeariaLogada] = useState(null)
-  const [barbeiroLogadoId, setBarbeiroLogadoId] = useState(null)
-
-  // ===== SENHA DO BARBEIRO =====
-
-  const [senhaAtual, setSenhaAtual] = useState('')
-  const [novaSenha, setNovaSenha] = useState('')
-  const [confirmarNovaSenha, setConfirmarNovaSenha] = useState('')
-
-  // ===== SAAS =====
-
-  const [barbeariasSaaS, setBarbeariasSaaS] = useState(() =>
-    carregar('asgestao_barbearias_saas', [
-      {
-        id: 1,
-        nome: 'Barbearia Mestre',
-        usuarioDono: 'dono',
-        senhaDono: '123456',
-        plano: 'Teste Grátis',
-        diasRestantes: 7,
-        statusPagamento: 'Pendente',
-        statusSaaS: 'Em Teste'
-      },
-      {
-        id: 2,
-        nome: 'Imperial Barber',
-        usuarioDono: 'imperial',
-        senhaDono: '123456',
-        plano: 'Anual Pro',
-        diasRestantes: 330,
-        statusPagamento: 'Pago',
-        statusSaaS: 'Ativo'
-      }
-    ])
-  )
-
-  const [novaBarbeariaSaaS, setNovaBarbeariaSaaS] = useState({
-    nome: '',
-    usuarioDono: '',
-    senhaDono: '',
-    plano: 'Teste Grátis (7 Dias)'
-  })
-
-  // ===== CAMPEONATOS =====
-
-  const [campeonatosRegionais, setCampeonatosRegionais] = useState(() =>
-    carregar('asgestao_campeonatos_regionais', [
-      {
-        id: 1,
-        titulo: 'Batalha de Barbeiros - Regional SP',
-        status: 'Em Andamento',
-        premio: 'Troféu Ouro + Viagem',
-        ativo: true
-      }
-    ])
-  )
-
-  const [novoCampRegional, setNovoCampRegional] = useState({
-    titulo: '',
-    premio: ''
-  })
-
-  // ===== UNIDADES =====
-
-  const [unidades, setUnidades] = useState(() =>
-    carregar('asgestao_unidades', [
-      { id: 1, nome: 'Unidade Centro', status: 'Ativa', gerente: 'Carlos' },
-      { id: 2, nome: 'Unidade Shopping', status: 'Ativa', gerente: 'Mariana' }
-    ])
-  )
 
   const [novaUnidade, setNovaUnidade] = useState('')
   const [editandoUnidadeId, setEditandoUnidadeId] = useState(null)
   const [nomeUnidadeEdit, setNomeUnidadeEdit] = useState('')
 
-  // ===== BARBEIROS =====
+  const [novoBarbeiro, setNovoBarbeiro] = useState({ nome: '', telefone: '', senha: '', unidade: 'Unidade Centro' })
+  const [editandoBarbeiroId, setEditandoBarbeiroId] = useState(null)
+  const [barbeiroEdit, setBarbeiroEdit] = useState({ nome: '', unidade: '' })
 
-  const [barbeiros, setBarbeiros] = useState(() =>
-    carregar('asgestao_barbeiros', [
-      {
-        id: 1,
-        nome: 'Carlos Silva',
-        telefone: '11988881111',
-        senha: '123',
-        unidade: 'Unidade Centro',
-        faturamento: 1850000
-      },
-      {
-        id: 2,
-        nome: 'Marcos Souza',
-        telefone: '11977772222',
-        senha: '123',
-        unidade: 'Unidade Centro',
-        faturamento: 1420000
-      },
-      {
-        id: 3,
-        nome: 'Mariana Santos',
-        telefone: '11966663333',
-        senha: '123',
-        unidade: 'Unidade Shopping',
-        faturamento: 2100000
-      }
-    ])
-  )
+  const [lancamentoValor, setLancamentoValor] = useState({ unidade: '', barbeiroId: '', valor: '', tipo: 'Corte/Serviço' })
 
-  const [novoBarbeiro, setNovoBarbeiro] = useState({
-    nome: '',
-    telefone: '',
-    senha: '',
-    unidade: ''
+  const [barbeiroSelecionadoConfig, setBarbeiroSelecionadoConfig] = useState('1')
+  const [formTresMetasBarbeiro, setFormTresMetasBarbeiro] = useState({
+    bronzeTipo: 'valor', bronzeMeta: '1000', bronzePremio: 'Folga Extra',
+    prataTipo: 'valor', prataMeta: '2000', prataPremio: 'Bônus 10%',
+    ouroTipo: 'valor', ouroMeta: '3000', ouroPremio: 'Viagem'
   })
 
-  const barbeiroLogado =
-    barbeiros.find(b => b.id === barbeiroLogadoId) || null
+  const [barbeiroLogado, setBarbeiroLogado] = useState(null)
 
-  // ===== LANÇAMENTOS E HISTÓRICO =====
-
-  const [lancamentoValor, setLancamentoValor] = useState({
-    barbeiroId: '',
-    valor: ''
-  })
-
-  const [lancamentos, setLancamentos] = useState(() =>
-    carregar('asgestao_historico_lancamentos', [])
-  )
-
-  const [editandoLancamentoId, setEditandoLancamentoId] =
-    useState(null)
-
-  // ===== METAS COLETIVAS =====
-
-  const [metasColetivas, setMetasColetivas] = useState(() =>
-    carregar('asgestao_metas_coletivas', {
-      bronze: {
-        objetivo: 4000000,
-        premio: 'Churrasco da Equipe'
-      },
-      prata: {
-        objetivo: 7000000,
-        premio: 'Churrasco + R$ 300 em Bônus para cada'
-      },
-      ouro: {
-        objetivo: 10000000,
-        premio: 'Churrasco + R$ 600 em Bônus + Troféu Ouro'
-      }
-    })
-  )
-
-  // ===== METAS INDIVIDUAIS =====
-
-  const [metasIndividuaisPorBarbeiro, setMetasIndividuaisPorBarbeiro] =
-    useState(() =>
-      carregar('asgestao_metas_tres_individuais', {
-        1: {
-          bronze: { tipo: 'valor', meta: 1000000, premio: 'Folga Extra' },
-          prata: { tipo: 'valor', meta: 2000000, premio: 'Bônus 10%' },
-          ouro: { tipo: 'valor', meta: 3000000, premio: 'Viagem e Troféu' }
-        },
-        2: {
-          bronze: { tipo: 'porcentagem', meta: 10, premio: 'Vale Produto' },
-          prata: { tipo: 'porcentagem', meta: 20, premio: 'Bônus Extra' },
-          ouro: { tipo: 'porcentagem', meta: 35, premio: 'Premiação Máxima' }
-        },
-        3: {
-          bronze: { tipo: 'valor', meta: 1200000, premio: 'Folga' },
-          prata: { tipo: 'valor', meta: 2200000, premio: 'Bônus' },
-          ouro: { tipo: 'valor', meta: 3500000, premio: 'Super Prêmio' }
-        }
+  // Carrega o formulário de metas do barbeiro selecionado (e de novo quando os dados chegam da nuvem)
+  useEffect(() => {
+    if (barbeiroSelecionadoConfig && metasIndividuaisPorBarbeiro[barbeiroSelecionadoConfig]) {
+      const m = metasIndividuaisPorBarbeiro[barbeiroSelecionadoConfig]
+      setFormTresMetasBarbeiro({
+        bronzeTipo: m.bronze?.tipo || 'valor',
+        bronzeMeta: m.bronze?.tipo === 'valor' ? (m.bronze?.meta / 100).toString() : (m.bronze?.meta || 10).toString(),
+        bronzePremio: m.bronze?.premio || '',
+        prataTipo: m.prata?.tipo || 'valor',
+        prataMeta: m.prata?.tipo === 'valor' ? (m.prata?.meta / 100).toString() : (m.prata?.meta || 20).toString(),
+        prataPremio: m.prata?.premio || '',
+        ouroTipo: m.ouro?.tipo || 'valor',
+        ouroMeta: m.ouro?.tipo === 'valor' ? (m.ouro?.meta / 100).toString() : (m.ouro?.meta || 30).toString(),
+        ouroPremio: m.ouro?.premio || ''
       })
-    )
-
-  const [barbeiroSelecionadoConfig, setBarbeiroSelecionadoConfig] =
-    useState('')
-
-  const [formMetas, setFormMetas] = useState({})
-
-  const [unidadeFiltroRanking, setUnidadeFiltroRanking] =
-    useState('TODAS')
-
-  // ===== PERSISTÊNCIA =====
-
-  useEffect(() => {
-    localStorage.setItem(
-      'asgestao_barbearias_saas',
-      JSON.stringify(barbeariasSaaS)
-    )
-  }, [barbeariasSaaS])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'asgestao_campeonatos_regionais',
-      JSON.stringify(campeonatosRegionais)
-    )
-  }, [campeonatosRegionais])
-
-  useEffect(() => {
-    localStorage.setItem('asgestao_unidades', JSON.stringify(unidades))
-  }, [unidades])
-
-  useEffect(() => {
-    localStorage.setItem('asgestao_barbeiros', JSON.stringify(barbeiros))
-  }, [barbeiros])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'asgestao_historico_lancamentos',
-      JSON.stringify(lancamentos)
-    )
-  }, [lancamentos])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'asgestao_metas_coletivas',
-      JSON.stringify(metasColetivas)
-    )
-  }, [metasColetivas])
-
-  useEffect(() => {
-    localStorage.setItem(
-      'asgestao_metas_tres_individuais',
-      JSON.stringify(metasIndividuaisPorBarbeiro)
-    )
-  }, [metasIndividuaisPorBarbeiro])
-
-  // ===== CONFIGURAÇÃO DAS METAS =====
-
-  useEffect(() => {
-    if (barbeiros.length === 0) {
-      setBarbeiroSelecionadoConfig('')
-      return
     }
+  }, [barbeiroSelecionadoConfig, ok6])
 
-    if (
-      !barbeiros.some(
-        b => String(b.id) === String(barbeiroSelecionadoConfig)
-      )
-    ) {
-      setBarbeiroSelecionadoConfig(String(barbeiros[0].id))
-    }
-  }, [barbeiros, barbeiroSelecionadoConfig])
-
-  useEffect(() => {
-    const m = metasIndividuaisPorBarbeiro[barbeiroSelecionadoConfig]
-    if (!m) return
-
-    const f = {}
-
-    NIVEIS.forEach(n => {
-      const x = m[n.chave] || METAS_PADRAO[n.chave]
-
-      f[n.chave] = {
-        tipo: x.tipo || 'valor',
-        meta: x.tipo === 'porcentagem'
-          ? String(x.meta)
-          : String(x.meta / 100),
-        premio: x.premio || ''
-      }
-    })
-
-    setFormMetas(f)
-  }, [barbeiroSelecionadoConfig, metasIndividuaisPorBarbeiro])
-
-  // ===== LOGIN / LOGOUT =====
-
-  const limparLogin = () => {
-    setUsuario({ login: '', senha: '' })
-  }
-
-  const trocarPerfil = (perfil) => {
-    setPerfilAtivo(perfil)
-    setErroLogin('')
-    limparLogin()
-  }
-
+  // Login
   const handleLogin = (e) => {
     e.preventDefault()
     setErroLogin('')
 
     if (perfilAtivo === 'admin') {
-      if (
-        usuario.login === ADMIN_LOGIN &&
-        usuario.senha === ADMIN_SENHA
-      ) {
-        setAbaAtiva(0)
+      if (usuario.login === 'Adriel2711' && usuario.senha === 'Giovana2711@') {
         setIsLoggedIn(true)
       } else {
         setErroLogin('Credenciais de Super Admin incorretas.')
       }
     } else if (perfilAtivo === 'dono') {
-      const encontrada = barbeariasSaaS.find(
-        b =>
-          b.usuarioDono === usuario.login &&
-          b.senhaDono === usuario.senha
+      const barbeariaEncontrada = barbeariasSaaS.find(
+        b => b.usuarioDono === usuario.login && b.senhaDono === usuario.senha
       )
-
-      if (
-        encontrada ||
-        (usuario.login === 'dono' && usuario.senha === '123456')
-      ) {
-        setBarbeariaLogada(
-          encontrada || { nome: 'Barbearia Principal' }
-        )
-        setAbaAtiva(0)
+      if (barbeariaEncontrada || (usuario.login === 'dono' && usuario.senha === '123456')) {
+        setBarbeariaLogada(barbeariaEncontrada || { nome: 'Barbearia Principal' })
         setIsLoggedIn(true)
       } else {
         setErroLogin('Credenciais do Dono incorretas.')
       }
     } else {
       const achado = barbeiros.find(
-        b =>
-          (
-            b.telefone === usuario.login ||
-            b.nome.toLowerCase() === usuario.login.toLowerCase()
-          ) &&
-          b.senha === usuario.senha
+        b => (b.telefone === usuario.login || b.nome.toLowerCase() === usuario.login.toLowerCase()) && b.senha === usuario.senha
       )
-
       if (achado) {
-        setBarbeiroLogadoId(achado.id)
-        setAbaAtiva(0)
+        setBarbeiroLogado(achado)
         setIsLoggedIn(true)
       } else {
         setErroLogin('Barbeiro não encontrado. Verifique os dados.')
@@ -430,1863 +141,625 @@ export default function App() {
   const handleLogout = () => {
     setIsLoggedIn(false)
     setBarbeariaLogada(null)
-    setBarbeiroLogadoId(null)
+    setBarbeiroLogado(null)
+    setUsuario({ login: '', senha: '' })
     setAbaAtiva(0)
-    setSenhaAtual('')
-    setNovaSenha('')
-    setConfirmarNovaSenha('')
-    setEditandoLancamentoId(null)
-    setLancamentoValor({ barbeiroId: '', valor: '' })
-    limparLogin()
   }
 
-  // ===== ALTERAÇÃO DE SENHA DO BARBEIRO =====
-
-  const alterarMinhaSenha = (e) => {
-    e.preventDefault()
-
-    if (!barbeiroLogado) return
-
-    if (senhaAtual !== barbeiroLogado.senha) {
-      alert('A senha atual está incorreta.')
-      return
-    }
-
-    if (novaSenha.length < 4) {
-      alert('A nova senha precisa ter pelo menos 4 caracteres.')
-      return
-    }
-
-    if (novaSenha !== confirmarNovaSenha) {
-      alert('As senhas não coincidem.')
-      return
-    }
-
-    setBarbeiros(prev =>
-      prev.map(b =>
-        b.id === barbeiroLogado.id
-          ? { ...b, senha: novaSenha }
-          : b
-      )
-    )
-
-    setSenhaAtual('')
-    setNovaSenha('')
-    setConfirmarNovaSenha('')
-
-    alert('Sua senha foi alterada com sucesso!')
-  }
-
-  // ===== UNIDADES =====
-
+  // Unidades
   const adicionarUnidade = (e) => {
     e.preventDefault()
-
-    const nome = novaUnidade.trim()
-    if (!nome) return
-
-    if (
-      unidades.some(
-        u => u.nome.toLowerCase() === nome.toLowerCase()
-      )
-    ) {
-      alert('Já existe uma unidade com esse nome.')
-      return
-    }
-
-    setUnidades(prev => [
-      ...prev,
-      {
-        id: proximoId(prev),
-        nome,
-        status: 'Ativa',
-        gerente: 'A definir'
-      }
-    ])
-
+    if (!novaUnidade.trim()) return
+    const novoId = Math.max(0, ...unidades.map(u => u.id)) + 1
+    setUnidades([...unidades, { id: novoId, nome: novaUnidade, status: 'Ativa', gerente: 'A definir' }])
     setNovaUnidade('')
-    alert('Unidade cadastrada com sucesso!')
   }
 
   const apagarUnidade = (id, nomeUnidade) => {
-    const temEquipe = barbeiros.some(
-      b => b.unidade === nomeUnidade
-    )
-
-    if (temEquipe) {
-      alert(
-        `A unidade "${nomeUnidade}" ainda tem barbeiros. Transfira-os para outra unidade antes de apagar.`
-      )
-      return
-    }
-
-    if (
-      window.confirm(`Deseja apagar a unidade "${nomeUnidade}"?`)
-    ) {
-      setUnidades(prev => prev.filter(u => u.id !== id))
+    if (window.confirm(`Deseja apagar a unidade "${nomeUnidade}"?`)) {
+      setUnidades(unidades.filter(u => u.id !== id))
     }
   }
 
   const salvarEdicaoUnidade = (id) => {
-    const novoNome = nomeUnidadeEdit.trim()
-    if (!novoNome) return
+    if (!nomeUnidadeEdit.trim()) return
+    const unidadeAntiga = unidades.find(u => u.id === id)
 
-    const atual = unidades.find(u => u.id === id)
-    if (!atual) return
-
-    if (
-      unidades.some(
-        u =>
-          u.id !== id &&
-          u.nome.toLowerCase() === novoNome.toLowerCase()
-      )
-    ) {
-      alert('Já existe uma unidade com esse nome.')
-      return
-    }
-
-    setUnidades(prev =>
-      prev.map(u =>
-        u.id === id ? { ...u, nome: novoNome } : u
-      )
-    )
-
-    setBarbeiros(prev =>
-      prev.map(b =>
-        b.unidade === atual.nome
-          ? { ...b, unidade: novoNome }
-          : b
-      )
-    )
-
-    if (unidadeFiltroRanking === atual.nome) {
-      setUnidadeFiltroRanking(novoNome)
-    }
+    setUnidades(unidades.map(u => u.id === id ? { ...u, nome: nomeUnidadeEdit } : u))
+    setBarbeiros(barbeiros.map(b =>
+      b.unidade === unidadeAntiga.nome ? { ...b, unidade: nomeUnidadeEdit } : b
+    ))
 
     setEditandoUnidadeId(null)
     alert('Unidade atualizada com sucesso!')
   }
 
-  // ===== BARBEIROS =====
-
+  // Barbeiros
   const cadastrarBarbeiro = (e) => {
     e.preventDefault()
+    if (!novoBarbeiro.nome.trim() || !novoBarbeiro.telefone.trim()) return
+    const novoId = barbeiros.length > 0 ? Math.max(...barbeiros.map(b => b.id)) + 1 : 1
+    setBarbeiros([...barbeiros, { id: novoId, ...novoBarbeiro, faturamento: 0 }])
 
-    if (
-      !novoBarbeiro.nome.trim() ||
-      !novoBarbeiro.telefone.trim() ||
-      !novoBarbeiro.senha.trim()
-    ) {
-      alert('Preencha todos os campos.')
-      return
-    }
-
-    if (unidades.length === 0) {
-      alert('Cadastre ao menos uma unidade antes.')
-      return
-    }
-
-    if (
-      barbeiros.some(
-        b => b.telefone === novoBarbeiro.telefone.trim()
-      )
-    ) {
-      alert('Já existe um barbeiro com esse telefone.')
-      return
-    }
-
-    const novoId = proximoId(barbeiros)
-    const unidade = novoBarbeiro.unidade || unidades[0].nome
-
-    setBarbeiros(prev => [
-      ...prev,
-      {
-        id: novoId,
-        nome: novoBarbeiro.nome.trim(),
-        telefone: novoBarbeiro.telefone.trim(),
-        senha: novoBarbeiro.senha,
-        unidade,
-        faturamento: 0
+    setMetasIndividuaisPorBarbeiro({
+      ...metasIndividuaisPorBarbeiro,
+      [novoId]: {
+        bronze: { tipo: 'valor', meta: 1000000, premio: 'Folga' },
+        prata: { tipo: 'valor', meta: 2000000, premio: 'Bônus' },
+        ouro: { tipo: 'valor', meta: 3000000, premio: 'Super Prêmio' }
       }
-    ])
-
-    setMetasIndividuaisPorBarbeiro(prev => ({
-      ...prev,
-      [novoId]: JSON.parse(JSON.stringify(METAS_PADRAO))
-    }))
-
-    setNovoBarbeiro({
-      nome: '',
-      telefone: '',
-      senha: '',
-      unidade: ''
     })
 
+    setNovoBarbeiro({ nome: '', telefone: '', senha: '', unidade: unidades[0]?.nome || 'Unidade Centro' })
     alert('Barbeiro cadastrado com sucesso!')
   }
 
   const apagarBarbeiro = (id, nomeBarbeiro) => {
-    if (
-      !window.confirm(`Deseja remover o barbeiro ${nomeBarbeiro}?`)
-    ) return
-
-    setBarbeiros(prev => prev.filter(b => b.id !== id))
-
-    setMetasIndividuaisPorBarbeiro(prev => {
-      const { [id]: removida, ...resto } = prev
-      return resto
-    })
-
-    // O histórico dos lançamentos permanece preservado.
-    // Assim, os registros antigos não desaparecem.
+    if (window.confirm(`Deseja remover o barbeiro ${nomeBarbeiro}?`)) {
+      setBarbeiros(barbeiros.filter(b => b.id !== id))
+    }
   }
 
-  // ===== LANÇAMENTOS =====
+  const iniciarEdicaoBarbeiro = (b) => {
+    setEditandoBarbeiroId(b.id)
+    setBarbeiroEdit({ nome: b.nome, unidade: b.unidade })
+  }
+
+  const salvarEdicaoBarbeiro = (id) => {
+    if (!barbeiroEdit.nome.trim()) return
+    setBarbeiros(barbeiros.map(b =>
+      b.id === id ? { ...b, nome: barbeiroEdit.nome, unidade: barbeiroEdit.unidade } : b
+    ))
+    setEditandoBarbeiroId(null)
+    alert('Barbeiro atualizado com sucesso!')
+  }
 
   const registrarFaturamentoBarbeiro = (e) => {
     e.preventDefault()
+    if (!lancamentoValor.barbeiroId || !lancamentoValor.valor) return
 
-    if (
-      !lancamentoValor.barbeiroId ||
-      !lancamentoValor.valor
-    ) return
-
-    const valor = Number(lancamentoValor.valor)
-
-    if (!Number.isFinite(valor) || valor <= 0) {
-      alert('Informe um valor maior que zero.')
-      return
-    }
-
-    const valorCentavos = Math.round(valor * 100)
-    const barbeiroId = Number(lancamentoValor.barbeiroId)
-
-    if (!barbeiros.some(b => b.id === barbeiroId)) {
-      alert('Barbeiro não encontrado.')
-      return
-    }
-
-    if (editandoLancamentoId !== null) {
-      const antigo = lancamentos.find(
-        l => l.id === editandoLancamentoId
-      )
-
-      if (!antigo) {
-        alert('Lançamento não encontrado.')
-        return
+    const valorCentavos = Math.round(parseFloat(lancamentoValor.valor) * 100)
+    setBarbeiros(barbeiros.map(b => {
+      if (b.id === Number(lancamentoValor.barbeiroId)) {
+        return { ...b, faturamento: b.faturamento + valorCentavos }
       }
+      return b
+    }))
 
-      // Retira o valor antigo e aplica o novo.
-      setBarbeiros(prev =>
-        prev.map(b => {
-          let novoFaturamento = b.faturamento
-
-          if (b.id === antigo.barbeiroId) {
-            novoFaturamento -= antigo.valorCentavos
-          }
-
-          if (b.id === barbeiroId) {
-            novoFaturamento += valorCentavos
-          }
-
-          return {
-            ...b,
-            faturamento: Math.max(0, novoFaturamento)
-          }
-        })
-      )
-
-      setLancamentos(prev =>
-        prev.map(l =>
-          l.id === editandoLancamentoId
-            ? {
-                ...l,
-                barbeiroId,
-                valorCentavos,
-                data: new Date().toISOString()
-              }
-            : l
-        )
-      )
-
-      setEditandoLancamentoId(null)
-      alert('Lançamento atualizado com sucesso!')
-    } else {
-      setBarbeiros(prev =>
-        prev.map(b =>
-          b.id === barbeiroId
-            ? {
-                ...b,
-                faturamento: b.faturamento + valorCentavos
-              }
-            : b
-        )
-      )
-
-      setLancamentos(prev => [
-        ...prev,
-        {
-          id: proximoId(prev),
-          barbeiroId,
-          valorCentavos,
-          data: new Date().toISOString()
-        }
-      ])
-
-      alert('Lançamento realizado com sucesso!')
-    }
-
-    setLancamentoValor({
-      barbeiroId: '',
-      valor: ''
-    })
+    setLancamentoValor({ unidade: lancamentoValor.unidade, barbeiroId: '', valor: '', tipo: 'Corte/Serviço' })
+    alert('Lançamento realizado com sucesso!')
   }
-
-  const editarLancamento = (l) => {
-    if (!barbeiros.some(b => b.id === l.barbeiroId)) {
-      alert('O barbeiro deste lançamento não está mais cadastrado.')
-      return
-    }
-
-    setEditandoLancamentoId(l.id)
-
-    setLancamentoValor({
-      barbeiroId: String(l.barbeiroId),
-      valor: (l.valorCentavos / 100).toFixed(2)
-    })
-
-    window.scrollTo({
-      top: 0,
-      behavior: 'smooth'
-    })
-  }
-
-  const cancelarEdicaoLancamento = () => {
-    setEditandoLancamentoId(null)
-    setLancamentoValor({
-      barbeiroId: '',
-      valor: ''
-    })
-  }
-
-  const excluirLancamento = (l) => {
-    if (
-      !window.confirm(
-        'Tem certeza que deseja excluir este lançamento? O faturamento será atualizado automaticamente.'
-      )
-    ) return
-
-    setBarbeiros(prev =>
-      prev.map(b =>
-        b.id === l.barbeiroId
-          ? {
-              ...b,
-              faturamento: Math.max(
-                0,
-                b.faturamento - l.valorCentavos
-              )
-            }
-          : b
-      )
-    )
-
-    setLancamentos(prev =>
-      prev.filter(item => item.id !== l.id)
-    )
-
-    if (editandoLancamentoId === l.id) {
-      cancelarEdicaoLancamento()
-    }
-
-    alert('Lançamento excluído com sucesso!')
-  }
-
-  // ===== METAS =====
 
   const salvarMetasColetivasForm = (e) => {
     e.preventDefault()
-    alert('As 3 metas coletivas foram atualizadas com sucesso!')
+    alert('As 3 Metas Coletivas foram atualizadas com sucesso!')
   }
 
-  const atualizarFormMeta = (chave, campo, valor) => {
-    setFormMetas(prev => ({
-      ...prev,
-      [chave]: {
-        ...prev[chave],
-        [campo]: valor
-      }
-    }))
-  }
-
-  const salvarMetasBarbeiroForm = (e) => {
+  const salvarTresMetasBarbeiroForm = (e) => {
     e.preventDefault()
-
     if (!barbeiroSelecionadoConfig) return
 
-    const novas = {}
+    const bMeta = formTresMetasBarbeiro.bronzeTipo === 'valor' ? Math.round(parseFloat(formTresMetasBarbeiro.bronzeMeta) * 100) : parseFloat(formTresMetasBarbeiro.bronzeMeta)
+    const pMeta = formTresMetasBarbeiro.prataTipo === 'valor' ? Math.round(parseFloat(formTresMetasBarbeiro.prataMeta) * 100) : parseFloat(formTresMetasBarbeiro.prataMeta)
+    const oMeta = formTresMetasBarbeiro.ouroTipo === 'valor' ? Math.round(parseFloat(formTresMetasBarbeiro.ouroMeta) * 100) : parseFloat(formTresMetasBarbeiro.ouroMeta)
 
-    for (const n of NIVEIS) {
-      const f = formMetas[n.chave]
-
-      if (!f) {
-        alert(`Configure a meta ${n.nome}.`)
-        return
+    setMetasIndividuaisPorBarbeiro({
+      ...metasIndividuaisPorBarbeiro,
+      [barbeiroSelecionadoConfig]: {
+        bronze: { tipo: formTresMetasBarbeiro.bronzeTipo, meta: bMeta, premio: formTresMetasBarbeiro.bronzePremio },
+        prata: { tipo: formTresMetasBarbeiro.prataTipo, meta: pMeta, premio: formTresMetasBarbeiro.prataPremio },
+        ouro: { tipo: formTresMetasBarbeiro.ouroTipo, meta: oMeta, premio: formTresMetasBarbeiro.ouroPremio }
       }
+    })
 
-      const numero = Number(f.meta)
-
-      if (!Number.isFinite(numero) || numero <= 0) {
-        alert(`Informe um valor válido para a meta ${n.nome}.`)
-        return
-      }
-
-      if (f.tipo === 'porcentagem' && numero > 100) {
-        alert('A porcentagem não pode ser maior que 100%.')
-        return
-      }
-
-      novas[n.chave] = {
-        tipo: f.tipo,
-        meta: f.tipo === 'valor'
-          ? Math.round(numero * 100)
-          : numero,
-        premio: f.premio
-      }
-    }
-
-    setMetasIndividuaisPorBarbeiro(prev => ({
-      ...prev,
-      [barbeiroSelecionadoConfig]: novas
-    }))
-
-    alert('As 3 metas individuais foram salvas com sucesso!')
+    alert('As 3 metas individuais deste barbeiro foram salvas com sucesso!')
   }
-
-  // ===== CAMPEONATOS / SAAS =====
 
   const criarCampeonatoRegional = (e) => {
     e.preventDefault()
-
     if (!novoCampRegional.titulo.trim()) return
-
-    setCampeonatosRegionais(prev => [
-      ...prev,
-      {
-        id: proximoId(prev),
-        titulo: novoCampRegional.titulo.trim(),
-        status: 'Em Andamento',
-        premio: novoCampRegional.premio || 'Troféu',
-        ativo: true
-      }
-    ])
-
-    setNovoCampRegional({
-      titulo: '',
-      premio: ''
-    })
+    const novoId = Math.max(0, ...campeonatosRegionais.map(c => c.id)) + 1
+    setCampeonatosRegionais([...campeonatosRegionais, {
+      id: novoId,
+      titulo: novoCampRegional.titulo,
+      status: 'Em Andamento',
+      premio: novoCampRegional.premio || 'Troféu',
+      ativo: true
+    }])
+    setNovoCampRegional({ titulo: '', premio: '' })
   }
 
   const apagarCampeonato = (id) => {
-    if (!window.confirm('Deseja apagar este campeonato?')) return
-
-    setCampeonatosRegionais(prev =>
-      prev.filter(c => c.id !== id)
-    )
+    setCampeonatosRegionais(campeonatosRegionais.filter(c => c.id !== id))
   }
 
   const cadastrarBarbeariaSaaS = (e) => {
     e.preventDefault()
-
-    if (
-      !novaBarbeariaSaaS.nome.trim() ||
-      !novaBarbeariaSaaS.usuarioDono.trim() ||
-      !novaBarbeariaSaaS.senhaDono.trim()
-    ) return
-
-    if (
-      barbeariasSaaS.some(
-        b => b.usuarioDono === novaBarbeariaSaaS.usuarioDono.trim()
-      )
-    ) {
-      alert('Esse utilizador já está em uso.')
-      return
-    }
-
-    setBarbeariasSaaS(prev => [
-      ...prev,
-      {
-        id: proximoId(prev),
-        ...novaBarbeariaSaaS,
-        nome: novaBarbeariaSaaS.nome.trim(),
-        usuarioDono: novaBarbeariaSaaS.usuarioDono.trim(),
-        diasRestantes: 7,
-        statusPagamento: 'Pendente',
-        statusSaaS: 'Em Teste'
-      }
-    ])
-
-    setNovaBarbeariaSaaS({
-      nome: '',
-      usuarioDono: '',
-      senhaDono: '',
-      plano: 'Teste Grátis (7 Dias)'
-    })
-
-    alert('Barbearia cadastrada com sucesso!')
+    if (!novaBarbeariaSaaS.nome.trim() || !novaBarbeariaSaaS.usuarioDono.trim()) return
+    const novoId = Math.max(0, ...barbeariasSaaS.map(b => b.id)) + 1
+    setBarbeariasSaaS([...barbeariasSaaS, {
+      id: novoId,
+      ...novaBarbeariaSaaS,
+      diasRestantes: 7,
+      statusPagamento: 'Pendente',
+      statusSaaS: 'Em Teste'
+    }])
+    setNovaBarbeariaSaaS({ nome: '', usuarioDono: '', senhaDono: '', plano: 'Teste Grátis (7 Dias)' })
   }
 
   const apagarBarbearia = (id) => {
-    if (!window.confirm('Deseja apagar esta barbearia?')) return
+    setBarbeariasSaaS(barbeariasSaaS.filter(b => b.id !== id))
+  }
 
-    setBarbeariasSaaS(prev =>
-      prev.filter(b => b.id !== id)
+  const alterarLicencaRapida = (id, dias, novoPlano, statusPag) => {
+    setBarbeariasSaaS(barbeariasSaaS.map(b => b.id === id ? { ...b, diasRestantes: dias, plano: novoPlano, statusPagamento: statusPag, statusSaaS: 'Ativo' } : b))
+  }
+
+  // TELA DE CARREGAMENTO (espera os dados chegarem da nuvem)
+  if (!(ok1 && ok2 && ok3 && ok4 && ok5 && ok6)) {
+    return (
+      <div className="login-wrapper">
+        <div className="login-card">
+          <div className="login-header">
+            <h2>AS GESTÃO</h2>
+            <p>Carregando dados...</p>
+          </div>
+        </div>
+      </div>
     )
   }
 
-  const alterarLicencaRapida = (
-    id,
-    dias,
-    novoPlano,
-    statusPag
-  ) => {
-    setBarbeariasSaaS(prev =>
-      prev.map(b =>
-        b.id === id
-          ? {
-              ...b,
-              diasRestantes: dias,
-              plano: novoPlano,
-              statusPagamento: statusPag,
-              statusSaaS: 'Ativo'
-            }
-          : b
-      )
-    )
-  }
-
-  // ===== DADOS CALCULADOS =====
-
-  const faturamentoTotalRede = barbeiros.reduce(
-    (acc, b) => acc + b.faturamento,
-    0
-  )
-
-  const menuAtual =
-    perfilAtivo === 'admin'
-      ? menuAdmin
-      : perfilAtivo === 'dono'
-        ? menuDono
-        : menuBarbeiro
-
-  // ===== LOGIN =====
-
+  // TELA DE LOGIN
   if (!isLoggedIn) {
     return (
       <div className="login-wrapper">
         <div className="login-card cyberpunk-glow">
-
           <div className="login-header">
             <h2>AS GESTÃO</h2>
             <p>Plataforma SaaS & Campeonatos</p>
           </div>
 
           <div className="perfil-selector">
-            <button
-              type="button"
-              className={`perfil-btn ${perfilAtivo === 'admin' ? 'active' : ''}`}
-              onClick={() => trocarPerfil('admin')}
-            >
-              Super Admin
-            </button>
-
-            <button
-              type="button"
-              className={`perfil-btn ${perfilAtivo === 'dono' ? 'active' : ''}`}
-              onClick={() => trocarPerfil('dono')}
-            >
-              Dono Barbearia
-            </button>
-
-            <button
-              type="button"
-              className={`perfil-btn ${perfilAtivo === 'barbeiro' ? 'active' : ''}`}
-              onClick={() => trocarPerfil('barbeiro')}
-            >
-              Barbeiro
-            </button>
+            <button type="button" className={`perfil-btn ${perfilAtivo === 'admin' ? 'active' : ''}`} onClick={() => { setPerfilAtivo('admin'); setErroLogin(''); setUsuario({ login: '', senha: '' }); }}>Super Admin</button>
+            <button type="button" className={`perfil-btn ${perfilAtivo === 'dono' ? 'active' : ''}`} onClick={() => { setPerfilAtivo('dono'); setErroLogin(''); setUsuario({ login: '', senha: '' }); }}>Dono Barbearia</button>
+            <button type="button" className={`perfil-btn ${perfilAtivo === 'barbeiro' ? 'active' : ''}`} onClick={() => { setPerfilAtivo('barbeiro'); setErroLogin(''); setUsuario({ login: '', senha: '' }); }}>Barbeiro</button>
           </div>
 
           <form onSubmit={handleLogin} className="login-form">
-
             <div className="form-group">
-              <label>
-                {perfilAtivo === 'admin'
-                  ? 'Identificador Super Admin'
-                  : perfilAtivo === 'dono'
-                    ? 'Utilizador do Dono'
-                    : 'Telefone do Barbeiro'}
-              </label>
-
-              <input
-                type="text"
-                value={usuario.login}
-                onChange={e =>
-                  setUsuario({
-                    ...usuario,
-                    login: e.target.value
-                  })
-                }
-                required
-              />
+              <label>{perfilAtivo === 'admin' ? 'Identificador Super Admin (Adriel2711)' : perfilAtivo === 'dono' ? 'Utilizador do Dono' : 'Telefone do Barbeiro'}</label>
+              <input type="text" placeholder={perfilAtivo === 'admin' ? 'Adriel2711' : ''} value={usuario.login} onChange={(e) => setUsuario({ ...usuario, login: e.target.value })} required />
             </div>
 
             <div className="form-group">
-              <label>Senha de Acesso</label>
-
+              <label>Palavra-passe de Acesso</label>
               <div className="password-input-container">
-                <input
-                  type={mostrarSenha ? 'text' : 'password'}
-                  value={usuario.senha}
-                  onChange={e =>
-                    setUsuario({
-                      ...usuario,
-                      senha: e.target.value
-                    })
-                  }
-                  required
-                />
-
-                <button
-                  type="button"
-                  className="toggle-password-btn"
-                  onClick={() => setMostrarSenha(!mostrarSenha)}
-                >
-                  {mostrarSenha ? '🙈' : '👁️'}
-                </button>
+                <input type={mostrarSenha ? "text" : "password"} value={usuario.senha} onChange={(e) => setUsuario({ ...usuario, senha: e.target.value })} required />
+                <button type="button" className="toggle-password-btn" onClick={() => setMostrarSenha(!mostrarSenha)}>{mostrarSenha ? "👁️" : "🔒"}</button>
               </div>
             </div>
 
-            {erroLogin && (
-              <span className="login-error">
-                {erroLogin}
-              </span>
-            )}
-
-            <button type="submit" className="login-btn">
-              Acessar Sistema
-            </button>
+            {erroLogin && <span className="login-error">{erroLogin}</span>}
+            <button type="submit" className="login-btn">Acessar Sistema</button>
           </form>
         </div>
       </div>
     )
   }
 
-  // ===== PAINEL SUPER ADMIN =====
-
+  // PAINEL SUPER ADMIN
   const renderConteudoAdmin = () => {
     switch (abaAtiva) {
-
       case 0:
         return (
           <section className="kpi-grid">
-            <div className="card kpi-card">
-              <h3>Contas Registradas</h3>
-              <p className="kpi-value">{barbeariasSaaS.length}</p>
-            </div>
-
-            <div className="card kpi-card">
-              <h3>Contas Pagas</h3>
-              <p className="kpi-value">
-                {barbeariasSaaS.filter(
-                  b => b.statusPagamento === 'Pago'
-                ).length}
-              </p>
-            </div>
-
-            <div className="card kpi-card">
-              <h3>Campeonatos Ativos</h3>
-              <p className="kpi-value">
-                {campeonatosRegionais.filter(c => c.ativo).length}
-              </p>
-            </div>
+            <div className="card kpi-card"><h3>Contas Registradas</h3><p className="kpi-value">{barbeariasSaaS.length}</p></div>
+            <div className="card kpi-card"><h3>Contas Pagas</h3><p className="kpi-value">{barbeariasSaaS.filter(b => b.statusPagamento === 'Pago').length}</p></div>
+            <div className="card kpi-card"><h3>Campeonatos Ativos</h3><p className="kpi-value">{campeonatosRegionais.length}</p></div>
           </section>
         )
-
       case 1:
         return (
-          <div
-            className="grid-duplo"
-            style={{ gridTemplateColumns: '1.6fr 1fr' }}
-          >
-
+          <div className="grid-duplo" style={{ gridTemplateColumns: '1.6fr 1fr' }}>
             <section className="card big-card">
               <h2>Gestão de Licenças & Acessos</h2>
-
-              <div className="table-scroll">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Barbearia</th>
-                      <th>Pagamento</th>
-                      <th>Validade</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {barbeariasSaaS.map(b => (
-                      <tr key={b.id}>
-                        <td>
-                          <strong>{b.nome}</strong>
-                          <br />
-                          <small style={{ color: '#9ca3af' }}>
-                            User: {b.usuarioDono}
-                          </small>
-                        </td>
-
-                        <td>
-                          <span className={`badge ${b.statusPagamento === 'Pago' ? 'badge-success' : 'badge-danger'}`}>
-                            {b.statusPagamento}
-                          </span>
-                        </td>
-
-                        <td>
-                          {b.diasRestantes >= 9000
-                            ? <span className="badge-vitalicio">✨ Vitalício</span>
-                            : `${b.diasRestantes} dias`}
-                        </td>
-
-                        <td>
-                          <div className="action-buttons-grid">
-                            <button
-                              onClick={() =>
-                                alterarLicencaRapida(
-                                  b.id, 30, 'Mensal', 'Pago'
-                                )
-                              }
-                              className="btn-sm btn-green"
-                            >
-                              +30d
-                            </button>
-
-                            <button
-                              onClick={() =>
-                                alterarLicencaRapida(
-                                  b.id, 365, 'Anual Pro', 'Pago'
-                                )
-                              }
-                              className="btn-sm btn-gold"
-                            >
-                              +1 Ano
-                            </button>
-
-                            <button
-                              onClick={() => apagarBarbearia(b.id)}
-                              className="btn-sm btn-red"
-                            >
-                              🗑️
-                            </button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="card big-card">
-              <h2>Cadastrar Nova Barbearia</h2>
-
-              <form
-                onSubmit={cadastrarBarbeariaSaaS}
-                className="login-form"
-              >
-                <div className="form-group">
-                  <label>Nome</label>
-                  <input
-                    value={novaBarbeariaSaaS.nome}
-                    onChange={e =>
-                      setNovaBarbeariaSaaS({
-                        ...novaBarbeariaSaaS,
-                        nome: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Utilizador</label>
-                  <input
-                    value={novaBarbeariaSaaS.usuarioDono}
-                    onChange={e =>
-                      setNovaBarbeariaSaaS({
-                        ...novaBarbeariaSaaS,
-                        usuarioDono: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Senha</label>
-                  <input
-                    type="password"
-                    value={novaBarbeariaSaaS.senhaDono}
-                    onChange={e =>
-                      setNovaBarbeariaSaaS({
-                        ...novaBarbeariaSaaS,
-                        senhaDono: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <button type="submit" className="login-btn">
-                  Cadastrar SaaS
-                </button>
-              </form>
-            </section>
-          </div>
-        )
-
-      case 2:
-        return (
-          <section className="card big-card">
-            <h2>Gerenciamento Global de Tenants</h2>
-
-            <div className="table-scroll">
               <table className="custom-table">
-                <thead>
-                  <tr>
-                    <th>ID</th>
-                    <th>Barbearia</th>
-                    <th>Utilizador</th>
-                    <th>Status</th>
-                  </tr>
-                </thead>
-
+                <thead><tr><th>Barbearia</th><th>Pagamento</th><th>Validade</th><th>Ações</th></tr></thead>
                 <tbody>
                   {barbeariasSaaS.map(b => (
                     <tr key={b.id}>
-                      <td>#{b.id}</td>
-                      <td>{b.nome}</td>
-                      <td><code>{b.usuarioDono}</code></td>
+                      <td><strong>{b.nome}</strong><br /><small style={{ color: '#9ca3af' }}>User: {b.usuarioDono}</small></td>
+                      <td><span className={`badge ${b.statusPagamento === 'Pago' ? 'badge-success' : 'badge-danger'}`}>{b.statusPagamento}</span></td>
+                      <td>{b.diasRestantes >= 9000 ? <span className="badge-vitalicio">✨ Vitalício</span> : <span>{b.diasRestantes} dias</span>}</td>
                       <td>
-                        <span className="badge-success">
-                          {b.statusSaaS}
-                        </span>
+                        <div className="action-buttons-grid">
+                          <button onClick={() => alterarLicencaRapida(b.id, 30, 'Mensal', 'Pago')} className="btn-sm btn-green">+30d</button>
+                          <button onClick={() => alterarLicencaRapida(b.id, 365, 'Anual Pro', 'Pago')} className="btn-sm btn-gold">+1 Ano</button>
+                          <button onClick={() => apagarBarbearia(b.id)} className="btn-sm btn-red">🗑️</button>
+                        </div>
                       </td>
                     </tr>
                   ))}
                 </tbody>
               </table>
-            </div>
-          </section>
-        )
-
-      case 3:
-        return (
-          <section className="card big-card">
-            <h2>🔎 Vistoria & Auditoria SaaS</h2>
-            <div className="audit-log-box">
-              <p style={{ color: '#22c55e' }}>
-                [VISTORIA] - Isolamento de bancos de dados validado.
-              </p>
-            </div>
-          </section>
-        )
-
-      case 4:
-        return (
-          <div className="grid-duplo">
-
-            <section className="card big-card">
-              <h2>🏆 Campeonatos Regionais</h2>
-
-              <div className="table-scroll">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Competição</th>
-                      <th>Status</th>
-                      <th>Ativo Regional</th>
-                      <th>Ações</th>
-                    </tr>
-                  </thead>
-
-                  <tbody>
-                    {campeonatosRegionais.map(c => (
-                      <tr key={c.id}>
-                        <td>{c.titulo}</td>
-                        <td>{c.status}</td>
-                        <td>{c.ativo ? 'Sim' : 'Não'}</td>
-                        <td>
-                          <button
-                            onClick={() => apagarCampeonato(c.id)}
-                            className="btn-sm btn-red"
-                          >
-                            Apagar
-                          </button>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
             </section>
-
             <section className="card big-card">
-              <h2>Criar Campeonato Regional</h2>
-
-              <form
-                onSubmit={criarCampeonatoRegional}
-                className="login-form"
-              >
-                <div className="form-group">
-                  <label>Título</label>
-                  <input
-                    value={novoCampRegional.titulo}
-                    onChange={e =>
-                      setNovoCampRegional({
-                        ...novoCampRegional,
-                        titulo: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Prêmio</label>
-                  <input
-                    value={novoCampRegional.premio}
-                    onChange={e =>
-                      setNovoCampRegional({
-                        ...novoCampRegional,
-                        premio: e.target.value
-                      })
-                    }
-                  />
-                </div>
-
-                <button type="submit" className="login-btn">
-                  Lançar Competição
-                </button>
+              <h2>Cadastrar Nova Barbearia</h2>
+              <form onSubmit={cadastrarBarbeariaSaaS} className="login-form">
+                <div className="form-group"><label>Nome</label><input type="text" value={novaBarbeariaSaaS.nome} onChange={(e) => setNovaBarbeariaSaaS({ ...novaBarbeariaSaaS, nome: e.target.value })} required /></div>
+                <div className="form-group"><label>Utilizador</label><input type="text" value={novaBarbeariaSaaS.usuarioDono} onChange={(e) => setNovaBarbeariaSaaS({ ...novaBarbeariaSaaS, usuarioDono: e.target.value })} required /></div>
+                <div className="form-group"><label>Senha</label><input type="password" value={novaBarbeariaSaaS.senhaDono} onChange={(e) => setNovaBarbeariaSaaS({ ...novaBarbeariaSaaS, senhaDono: e.target.value })} required /></div>
+                <button type="submit" className="login-btn">Cadastrar SaaS</button>
               </form>
             </section>
           </div>
         )
-
+      case 2:
+        return (
+          <section className="card big-card">
+            <h2>Gerenciamento Global de Tenants</h2>
+            <table className="custom-table" style={{ marginTop: '16px' }}>
+              <thead><tr><th>ID</th><th>Barbearia</th><th>Utilizador</th><th>Status</th></tr></thead>
+              <tbody>
+                {barbeariasSaaS.map(b => (
+                  <tr key={b.id}><td>#{b.id}</td><td><strong>{b.nome}</strong></td><td><code>{b.usuarioDono}</code></td><td><span className="badge-success">{b.statusSaaS}</span></td></tr>
+                ))}
+              </tbody>
+            </table>
+          </section>
+        )
+      case 3:
+        return (
+          <section className="card big-card">
+            <h2>🔎 Vistoria & Auditoria SaaS</h2>
+            <div className="audit-log-box" style={{ marginTop: '20px', background: '#080808', padding: '16px', borderRadius: '8px', border: '1px solid #222', fontFamily: 'JetBrains Mono' }}>
+              <p style={{ color: '#22c55e' }}>[VISTORIA] - Isolamento de bancos de dados validado.</p>
+            </div>
+          </section>
+        )
+      case 4:
+        return (
+          <div className="grid-duplo">
+            <section className="card big-card">
+              <h2>🏆 Campeonatos Regionais</h2>
+              <table className="custom-table" style={{ marginTop: '16px' }}>
+                <thead><tr><th>Competição</th><th>Status</th><th>Ativo Regional</th><th>Ações</th></tr></thead>
+                <tbody>
+                  {campeonatosRegionais.map(c => (
+                    <tr key={c.id}>
+                      <td><strong>{c.titulo}</strong></td>
+                      <td><span className="badge-success">{c.status}</span></td>
+                      <td>{c.ativo ? <span style={{ color: '#34d399' }}>Sim</span> : <span style={{ color: '#f87171' }}>Não</span>}</td>
+                      <td><button onClick={() => apagarCampeonato(c.id)} className="btn-sm btn-red">Apagar</button></td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </section>
+            <section className="card big-card">
+              <h2>Criar Campeonato Regional</h2>
+              <form onSubmit={criarCampeonatoRegional} className="login-form">
+                <div className="form-group"><label>Título</label><input type="text" value={novoCampRegional.titulo} onChange={(e) => setNovoCampRegional({ ...novoCampRegional, titulo: e.target.value })} required /></div>
+                <div className="form-group"><label>Prêmio</label><input type="text" value={novoCampRegional.premio} onChange={(e) => setNovoCampRegional({ ...novoCampRegional, premio: e.target.value })} /></div>
+                <button type="submit" className="login-btn">Lançar Competição</button>
+              </form>
+            </section>
+          </div>
+        )
       default:
         return null
     }
   }
 
-  // ===== PAINEL DO DONO =====
-
+  // PAINEL DO DONO DA BARBEARIA
   const renderConteudoDono = () => {
+    const faturamentoTotalRede = barbeiros.reduce((acc, b) => acc + b.faturamento, 0)
+    const barbeirosFiltradosDono = unidadeFiltroRanking === 'TODAS' ? barbeiros : barbeiros.filter(b => b.unidade === unidadeFiltroRanking)
 
-    const barbeirosFiltradosDono = (
-      unidadeFiltroRanking === 'TODAS'
-        ? [...barbeiros]
-        : barbeiros.filter(
-            b => b.unidade === unidadeFiltroRanking
-          )
-    ).sort((a, b) => b.faturamento - a.faturamento)
+    const campeonatoAtivoAdmin = campeonatosRegionais.some(c => c.ativo)
+    const mostrarRankingRegional = barbeariasSaaS.length > 1 && campeonatoAtivoAdmin
 
-    const campeonatoAtivoAdmin =
-      campeonatosRegionais.some(c => c.ativo)
-
-    const mostrarRankingRegional =
-      barbeariasSaaS.length > 1 && campeonatoAtivoAdmin
+    const temVariasUnidades = unidades.length > 1
+    const barbeirosLancamento = temVariasUnidades
+      ? (lancamentoValor.unidade ? barbeiros.filter(b => b.unidade === lancamentoValor.unidade) : [])
+      : barbeiros
+    const barbeirosTabelaFaturamento = temVariasUnidades && lancamentoValor.unidade
+      ? barbeiros.filter(b => b.unidade === lancamentoValor.unidade)
+      : barbeiros
 
     switch (abaAtiva) {
-
       case 0:
         return (
-          <>
-            <section className="kpi-grid">
-
-              <div className="card kpi-card">
-                <h3>Faturamento Total da Rede</h3>
-                <p className="kpi-value">
-                  {formatarReais(faturamentoTotalRede)}
-                </p>
-              </div>
-
-              <div className="card kpi-card">
-                <h3>Unidades Operacionais</h3>
-                <p className="kpi-value">{unidades.length}</p>
-              </div>
-
-              <div className="card kpi-card">
-                <h3>Total de Barbeiros</h3>
-                <p className="kpi-value">{barbeiros.length}</p>
-              </div>
-
-            </section>
-
-            <section className="card big-card">
-              <h2>🤝 Progresso das Metas Coletivas</h2>
-
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '14px'
-              }}>
-                {NIVEIS.map(n => {
-                  const m = metasColetivas[n.chave]
-                  const pct = Math.min(
-                    100,
-                    (faturamentoTotalRede / (m.objetivo || 1)) * 100
-                  )
-
-                  return (
-                    <div
-                      key={n.chave}
-                      className="meta-box"
-                      style={{ borderLeft: `4px solid ${n.cor}` }}
-                    >
-                      <p style={{ color: n.cor, fontWeight: 'bold' }}>
-                        {n.icone} {n.nome}: {formatarReais(m.objetivo)}
-                        {' '}({pct.toFixed(1)}%)
-                      </p>
-
-                      <BarraProgresso pct={pct} />
-
-                      <p style={{ fontSize: '0.8rem' }}>
-                        Prêmio: <strong>{m.premio}</strong>
-                      </p>
-                    </div>
-                  )
-                })}
-              </div>
-            </section>
-          </>
+          <section className="kpi-grid">
+            <div className="card kpi-card"><h3>Faturamento Total da Rede</h3><p className="kpi-value">R$ {(faturamentoTotalRede / 100).toFixed(2)}</p></div>
+            <div className="card kpi-card"><h3>Unidades Operacionais</h3><p className="kpi-value">{unidades.length}</p></div>
+            <div className="card kpi-card"><h3>Total de Barbeiros</h3><p className="kpi-value">{barbeiros.length}</p></div>
+          </section>
         )
-
-      // ===== UNIDADES E EQUIPE =====
-
       case 1:
         return (
           <div className="grid-duplo">
-
             <section className="card big-card">
               <h2>Gerenciar & Editar Unidades</h2>
-
-              <form
-                onSubmit={adicionarUnidade}
-                className="login-form"
-                style={{ marginBottom: '20px' }}
-              >
+              <form onSubmit={adicionarUnidade} className="login-form" style={{ marginBottom: '20px' }}>
                 <div className="form-group">
                   <label>Nova Unidade</label>
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px'
-                  }}>
-                    <input
-                      type="text"
-                      placeholder="Ex: Unidade Norte"
-                      value={novaUnidade}
-                      onChange={e => setNovaUnidade(e.target.value)}
-                      required
-                    />
-
-                    <button
-                      type="submit"
-                      className="login-btn"
-                      style={{ margin: 0, padding: '0 16px' }}
-                    >
-                      Adicionar
-                    </button>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <input type="text" placeholder="Ex: Unidade Norte" value={novaUnidade} onChange={(e) => setNovaUnidade(e.target.value)} required />
+                    <button type="submit" className="login-btn" style={{ margin: 0, padding: '0 16px' }}>Adicionar</button>
                   </div>
                 </div>
               </form>
 
-              <div className="table-scroll">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Nome da Unidade</th>
-                      <th>Ações</th>
+              <table className="custom-table">
+                <thead><tr><th>Nome da Unidade</th><th>Ações</th></tr></thead>
+                <tbody>
+                  {unidades.map(u => (
+                    <tr key={u.id}>
+                      <td>
+                        {editandoUnidadeId === u.id ? (
+                          <input type="text" value={nomeUnidadeEdit} onChange={(e) => setNomeUnidadeEdit(e.target.value)} className="input-inline" />
+                        ) : <strong>{u.nome}</strong>}
+                      </td>
+                      <td>
+                        {editandoUnidadeId === u.id ? (
+                          <div className="action-buttons-grid">
+                            <button onClick={() => salvarEdicaoUnidade(u.id)} className="btn-sm btn-green">Salvar</button>
+                            <button onClick={() => setEditandoUnidadeId(null)} className="btn-sm btn-red">Cancelar</button>
+                          </div>
+                        ) : (
+                          <div className="action-buttons-grid">
+                            <button onClick={() => { setEditandoUnidadeId(u.id); setNomeUnidadeEdit(u.nome); }} className="btn-sm btn-gold">Editar</button>
+                            <button onClick={() => apagarUnidade(u.id, u.nome)} className="btn-sm btn-red">Apagar</button>
+                          </div>
+                        )}
+                      </td>
                     </tr>
-                  </thead>
-
-                  <tbody>
-                    {unidades.map(u => (
-                      <tr key={u.id}>
-                        <td>
-                          {editandoUnidadeId === u.id
-                            ? (
-                              <input
-                                type="text"
-                                value={nomeUnidadeEdit}
-                                onChange={e =>
-                                  setNomeUnidadeEdit(e.target.value)
-                                }
-                                className="input-inline"
-                              />
-                            )
-                            : <strong>{u.nome}</strong>}
-                        </td>
-
-                        <td>
-                          {editandoUnidadeId === u.id
-                            ? (
-                              <div className="action-buttons-grid">
-                                <button
-                                  onClick={() => salvarEdicaoUnidade(u.id)}
-                                  className="btn-sm btn-green"
-                                >
-                                  Salvar
-                                </button>
-
-                                <button
-                                  onClick={() => setEditandoUnidadeId(null)}
-                                  className="btn-sm btn-red"
-                                >
-                                  Cancelar
-                                </button>
-                              </div>
-                            )
-                            : (
-                              <div className="action-buttons-grid">
-                                <button
-                                  onClick={() => {
-                                    setEditandoUnidadeId(u.id)
-                                    setNomeUnidadeEdit(u.nome)
-                                  }}
-                                  className="btn-sm btn-gold"
-                                >
-                                  Editar
-                                </button>
-
-                                <button
-                                  onClick={() => apagarUnidade(u.id, u.nome)}
-                                  className="btn-sm btn-red"
-                                >
-                                  Apagar
-                                </button>
-                              </div>
-                            )}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+                  ))}
+                </tbody>
+              </table>
             </section>
 
             <section className="card big-card">
-              <h2>Adicionar Barbeiros</h2>
-
-              <form
-                onSubmit={cadastrarBarbeiro}
-                className="login-form"
-                style={{ marginBottom: '20px' }}
-              >
+              <h2>Adicionar, Editar ou Excluir Barbeiros</h2>
+              <form onSubmit={cadastrarBarbeiro} className="login-form" style={{ marginBottom: '20px' }}>
+                <div className="form-group"><label>Nome</label><input type="text" value={novoBarbeiro.nome} onChange={(e) => setNovoBarbeiro({ ...novoBarbeiro, nome: e.target.value })} required /></div>
+                <div className="form-group"><label>Telefone (Login)</label><input type="text" value={novoBarbeiro.telefone} onChange={(e) => setNovoBarbeiro({ ...novoBarbeiro, telefone: e.target.value })} required /></div>
+                <div className="form-group"><label>Senha</label><input type="password" value={novoBarbeiro.senha} onChange={(e) => setNovoBarbeiro({ ...novoBarbeiro, senha: e.target.value })} required /></div>
                 <div className="form-group">
-                  <label>Nome</label>
-                  <input
-                    value={novoBarbeiro.nome}
-                    onChange={e =>
-                      setNovoBarbeiro({
-                        ...novoBarbeiro,
-                        nome: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Telefone (Login)</label>
-                  <input
-                    value={novoBarbeiro.telefone}
-                    onChange={e =>
-                      setNovoBarbeiro({
-                        ...novoBarbeiro,
-                        telefone: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Senha inicial</label>
-                  <input
-                    type="password"
-                    value={novoBarbeiro.senha}
-                    onChange={e =>
-                      setNovoBarbeiro({
-                        ...novoBarbeiro,
-                        senha: e.target.value
-                      })
-                    }
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Unidade do Barbeiro</label>
-
-                  <select
-                    value={
-                      novoBarbeiro.unidade ||
-                      unidades[0]?.nome ||
-                      ''
-                    }
-                    onChange={e =>
-                      setNovoBarbeiro({
-                        ...novoBarbeiro,
-                        unidade: e.target.value
-                      })
-                    }
-                    className="select-input"
-                    required
-                  >
-                    {unidades.map(u => (
-                      <option key={u.id} value={u.nome}>
-                        {u.nome}
-                      </option>
-                    ))}
+                  <label>Unidade</label>
+                  <select value={novoBarbeiro.unidade} onChange={(e) => setNovoBarbeiro({ ...novoBarbeiro, unidade: e.target.value })} className="select-input">
+                    {unidades.map(u => <option key={u.id} value={u.nome}>{u.nome}</option>)}
                   </select>
                 </div>
-
-                <button type="submit" className="login-btn">
-                  Cadastrar Barbeiro
-                </button>
+                <button type="submit" className="login-btn">Cadastrar Barbeiro</button>
               </form>
 
               <h3>Equipe Cadastrada</h3>
-
-              <div className="team-grid">
+              <div className="team-grid" style={{ marginTop: '10px' }}>
                 {barbeiros.map(b => (
                   <div key={b.id} className="team-card">
+                    <div className="avatar">{b.nome.substring(0, 2).toUpperCase()}</div>
 
-                    <div className="avatar">
-                      {b.nome.substring(0, 2).toUpperCase()}
-                    </div>
-
-                    <h4>{b.nome}</h4>
-
-                    <span
-                      className="badge-success"
-                      style={{ fontSize: '0.7rem' }}
-                    >
-                      {b.unidade}
-                    </span>
-
-                    <div className="form-group" style={{ marginTop: '10px' }}>
-                      <label>Alterar unidade</label>
-
-                      <select
-                        value={b.unidade}
-                        className="select-input"
-                        onChange={e => {
-                          const novaUnidadeBarbeiro = e.target.value
-
-                          setBarbeiros(prev =>
-                            prev.map(item =>
-                              item.id === b.id
-                                ? {
-                                    ...item,
-                                    unidade: novaUnidadeBarbeiro
-                                  }
-                                : item
-                            )
-                          )
-                        }}
-                      >
-                        {unidades.map(u => (
-                          <option key={u.id} value={u.nome}>
-                            {u.nome}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
-
-                    <button
-                      onClick={() => apagarBarbeiro(b.id, b.nome)}
-                      className="btn-sm btn-red"
-                      style={{ marginTop: '8px' }}
-                    >
-                      Excluir Barbeiro
-                    </button>
-
+                    {editandoBarbeiroId === b.id ? (
+                      <>
+                        <input
+                          type="text"
+                          value={barbeiroEdit.nome}
+                          onChange={(e) => setBarbeiroEdit({ ...barbeiroEdit, nome: e.target.value })}
+                          className="input-inline"
+                        />
+                        <select
+                          value={barbeiroEdit.unidade}
+                          onChange={(e) => setBarbeiroEdit({ ...barbeiroEdit, unidade: e.target.value })}
+                          className="select-input"
+                        >
+                          {unidades.map(u => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+                        </select>
+                        <div className="action-buttons-grid" style={{ marginTop: '4px' }}>
+                          <button onClick={() => salvarEdicaoBarbeiro(b.id)} className="btn-sm btn-green">Salvar</button>
+                          <button onClick={() => setEditandoBarbeiroId(null)} className="btn-sm btn-red">Cancelar</button>
+                        </div>
+                      </>
+                    ) : (
+                      <>
+                        <h4>{b.nome}</h4>
+                        <span className="badge-success" style={{ fontSize: '0.7rem' }}>{b.unidade}</span>
+                        <div className="action-buttons-grid" style={{ marginTop: '4px' }}>
+                          <button onClick={() => iniciarEdicaoBarbeiro(b)} className="btn-sm btn-gold">Editar</button>
+                          <button onClick={() => apagarBarbeiro(b.id, b.nome)} className="btn-sm btn-red">Excluir</button>
+                        </div>
+                      </>
+                    )}
                   </div>
                 ))}
               </div>
             </section>
           </div>
         )
-
-      // ===== LANÇAMENTOS E HISTÓRICO =====
-
       case 2:
         return (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '24px'
-          }}>
-
+          <div className="grid-duplo">
             <section className="card big-card">
+              <h2>💵 Lançamento de Valores (Caixa)</h2>
+              <p className="subtitle">Alimenta o faturamento do barbeiro e recalcula o progresso das metas.</p>
 
-              <h2>
-                {editandoLancamentoId !== null
-                  ? '✏️ Editar Lançamento'
-                  : '💵 Novo Lançamento de Vendas'}
-              </h2>
-
-              <p className="subtitle">
-                Registre os valores dos barbeiros. Todos os lançamentos
-                ficam salvos no histórico e atualizam automaticamente
-                o faturamento e os rankings.
-              </p>
-
-              <form
-                onSubmit={registrarFaturamentoBarbeiro}
-                className="login-form"
-              >
-
+              <form onSubmit={registrarFaturamentoBarbeiro} className="login-form">
+                {temVariasUnidades && (
+                  <div className="form-group">
+                    <label>Selecionar Unidade</label>
+                    <select value={lancamentoValor.unidade} onChange={(e) => setLancamentoValor({ ...lancamentoValor, unidade: e.target.value, barbeiroId: '' })} className="select-input" required>
+                      <option value="">-- Escolher unidade --</option>
+                      {unidades.map(u => <option key={u.id} value={u.nome}>{u.nome}</option>)}
+                    </select>
+                  </div>
+                )}
                 <div className="form-group">
-                  <label>Selecionar Barbeiro</label>
-
-                  <select
-                    value={lancamentoValor.barbeiroId}
-                    onChange={e =>
-                      setLancamentoValor({
-                        ...lancamentoValor,
-                        barbeiroId: e.target.value
-                      })
-                    }
-                    className="select-input"
-                    required
-                  >
-                    <option value="">-- Escolher Barbeiro --</option>
-
-                    {barbeiros.map(b => (
-                      <option key={b.id} value={b.id}>
-                        {b.nome} ({b.unidade})
-                      </option>
-                    ))}
+                  <label>Selecionar Barbeiro Cadastrado</label>
+                  <select value={lancamentoValor.barbeiroId} onChange={(e) => setLancamentoValor({ ...lancamentoValor, barbeiroId: e.target.value })} className="select-input" required disabled={temVariasUnidades && !lancamentoValor.unidade}>
+                    <option value="">{temVariasUnidades && !lancamentoValor.unidade ? '-- Escolha a unidade primeiro --' : '-- Escolher --'}</option>
+                    {barbeirosLancamento.map(b => <option key={b.id} value={b.id}>{b.nome}{temVariasUnidades ? '' : ` (${b.unidade})`}</option>)}
                   </select>
                 </div>
-
                 <div className="form-group">
                   <label>Valor (R$)</label>
-
-                  <input
-                    type="number"
-                    step="0.01"
-                    min="0.01"
-                    placeholder="Ex: 80.00"
-                    value={lancamentoValor.valor}
-                    onChange={e =>
-                      setLancamentoValor({
-                        ...lancamentoValor,
-                        valor: e.target.value
-                      })
-                    }
-                    required
-                  />
+                  <input type="number" step="0.01" placeholder="Ex: 80.00" value={lancamentoValor.valor} onChange={(e) => setLancamentoValor({ ...lancamentoValor, valor: e.target.value })} required />
                 </div>
-
-                <div style={{
-                  display: 'flex',
-                  gap: '10px',
-                  flexWrap: 'wrap'
-                }}>
-                  <button type="submit" className="login-btn">
-                    {editandoLancamentoId !== null
-                      ? 'Salvar Alterações'
-                      : 'Registrar Lançamento'}
-                  </button>
-
-                  {editandoLancamentoId !== null && (
-                    <button
-                      type="button"
-                      className="btn-sm btn-red"
-                      onClick={cancelarEdicaoLancamento}
-                    >
-                      Cancelar Edição
-                    </button>
-                  )}
-                </div>
+                <button type="submit" className="login-btn">Lançar Valor</button>
               </form>
             </section>
 
             <section className="card big-card">
-
-              <h2>📊 Faturamento por Barbeiro</h2>
-
-              <div className="table-scroll">
-                <table className="custom-table">
-                  <thead>
-                    <tr>
-                      <th>Barbeiro</th>
-                      <th>Unidade</th>
-                      <th>Faturamento</th>
+              <h2>📊 Faturamento por Barbeiro{temVariasUnidades && lancamentoValor.unidade ? ` — ${lancamentoValor.unidade}` : ''}</h2>
+              <table className="custom-table" style={{ marginTop: '10px' }}>
+                <thead><tr><th>Barbeiro</th><th>Unidade</th><th>Acumulado</th></tr></thead>
+                <tbody>
+                  {barbeirosTabelaFaturamento.map(b => (
+                    <tr key={b.id}>
+                      <td><strong>{b.nome}</strong></td>
+                      <td>{b.unidade}</td>
+                      <td className="gold-txt">R$ {(b.faturamento / 100).toFixed(2)}</td>
                     </tr>
-                  </thead>
-
-                  <tbody>
-                    {barbeiros.map(b => (
-                      <tr key={b.id}>
-                        <td><strong>{b.nome}</strong></td>
-                        <td>{b.unidade}</td>
-                        <td className="gold-txt">
-                          {formatarReais(b.faturamento)}
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
-            </section>
-
-            <section className="card big-card">
-
-              <div className="ranking-header">
-                <h2>📋 Histórico de Lançamentos</h2>
-
-                <span className="badge-success">
-                  {lancamentos.length} registros
-                </span>
-              </div>
-
-              <p className="subtitle">
-                Consulte, edite ou exclua qualquer lançamento.
-              </p>
-
-              {lancamentos.length === 0 ? (
-                <p className="subtitle">
-                  Nenhum lançamento registrado ainda.
-                </p>
-              ) : (
-                <div className="table-scroll">
-                  <table className="custom-table">
-
-                    <thead>
-                      <tr>
-                        <th>Data e Hora</th>
-                        <th>Barbeiro</th>
-                        <th>Unidade</th>
-                        <th>Valor</th>
-                        <th>Ações</th>
-                      </tr>
-                    </thead>
-
-                    <tbody>
-                      {[...lancamentos]
-                        .sort(
-                          (a, b) =>
-                            new Date(b.data).getTime() -
-                            new Date(a.data).getTime()
-                        )
-                        .map(l => {
-                          const barbeiro = barbeiros.find(
-                            b => b.id === l.barbeiroId
-                          )
-
-                          return (
-                            <tr key={l.id}>
-
-                              <td>
-                                {new Date(l.data).toLocaleString('pt-BR')}
-                              </td>
-
-                              <td>
-                                <strong>
-                                  {barbeiro?.nome || 'Barbeiro removido'}
-                                </strong>
-                              </td>
-
-                              <td>
-                                {barbeiro?.unidade || '-'}
-                              </td>
-
-                              <td className="gold-txt">
-                                {formatarReais(l.valorCentavos)}
-                              </td>
-
-                              <td>
-                                {barbeiro ? (
-                                  <div className="action-buttons-grid">
-                                    <button
-                                      onClick={() => editarLancamento(l)}
-                                      className="btn-sm btn-gold"
-                                    >
-                                      Editar
-                                    </button>
-
-                                    <button
-                                      onClick={() => excluirLancamento(l)}
-                                      className="btn-sm btn-red"
-                                    >
-                                      Excluir
-                                    </button>
-                                  </div>
-                                ) : (
-                                  <span className="subtitle">
-                                    Registro preservado
-                                  </span>
-                                )}
-                              </td>
-
-                            </tr>
-                          )
-                        })}
-                    </tbody>
-
-                  </table>
-                </div>
-              )}
+                  ))}
+                  <tr>
+                    <td colSpan={2}><strong>Total{temVariasUnidades && lancamentoValor.unidade ? ' da unidade' : ' da rede'}</strong></td>
+                    <td className="gold-txt"><strong>R$ {(barbeirosTabelaFaturamento.reduce((acc, b) => acc + b.faturamento, 0) / 100).toFixed(2)}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
             </section>
           </div>
         )
-
-      // ===== METAS =====
-
       case 3:
         return (
           <div className="grid-duplo">
-
             <section className="card big-card">
-
               <h2>⚙️ Configurar as 3 Metas Coletivas</h2>
+              <p className="subtitle">Valores (R$) e prêmios para toda a equipe unida.</p>
 
-              <p className="subtitle">
-                Defina os objetivos e prêmios para toda a equipe.
-                Somente o dono tem acesso à configuração.
-              </p>
+              <form onSubmit={salvarMetasColetivasForm} className="login-form">
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #cd7f32' }}>
+                  <label style={{ color: '#cd7f32', fontWeight: 'bold' }}>🥉 Meta Coletiva Bronze (R$):</label>
+                  <input type="number" value={metasColetivas.bronze.objetivo / 100} onChange={(e) => setMetasColetivas({ ...metasColetivas, bronze: { ...metasColetivas.bronze, objetivo: Number(e.target.value) * 100 } })} required />
+                  <label>Prêmio:</label>
+                  <input type="text" value={metasColetivas.bronze.premio} onChange={(e) => setMetasColetivas({ ...metasColetivas, bronze: { ...metasColetivas.bronze, premio: e.target.value } })} required />
+                </div>
 
-              <form
-                onSubmit={salvarMetasColetivasForm}
-                className="login-form"
-              >
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #c0c0c0' }}>
+                  <label style={{ color: '#c0c0c0', fontWeight: 'bold' }}>🥈 Meta Coletiva Prata (R$):</label>
+                  <input type="number" value={metasColetivas.prata.objetivo / 100} onChange={(e) => setMetasColetivas({ ...metasColetivas, prata: { ...metasColetivas.prata, objetivo: Number(e.target.value) * 100 } })} required />
+                  <label>Prêmio:</label>
+                  <input type="text" value={metasColetivas.prata.premio} onChange={(e) => setMetasColetivas({ ...metasColetivas, prata: { ...metasColetivas.prata, premio: e.target.value } })} required />
+                </div>
 
-                {NIVEIS.map(n => (
-                  <div
-                    key={n.chave}
-                    className="meta-box"
-                    style={{ borderLeft: `4px solid ${n.cor}` }}
-                  >
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #C6A15B' }}>
+                  <label style={{ color: '#C6A15B', fontWeight: 'bold' }}>🥇 Meta Coletiva Ouro (R$):</label>
+                  <input type="number" value={metasColetivas.ouro.objetivo / 100} onChange={(e) => setMetasColetivas({ ...metasColetivas, ouro: { ...metasColetivas.ouro, objetivo: Number(e.target.value) * 100 } })} required />
+                  <label>Prêmio:</label>
+                  <input type="text" value={metasColetivas.ouro.premio} onChange={(e) => setMetasColetivas({ ...metasColetivas, ouro: { ...metasColetivas.ouro, premio: e.target.value } })} required />
+                </div>
 
-                    <label style={{
-                      color: n.cor,
-                      fontWeight: 'bold'
-                    }}>
-                      {n.icone} Meta Coletiva {n.nome} (R$):
-                    </label>
-
-                    <input
-                      type="number"
-                      min="1"
-                      step="0.01"
-                      value={metasColetivas[n.chave].objetivo / 100}
-                      onChange={e =>
-                        setMetasColetivas(prev => ({
-                          ...prev,
-                          [n.chave]: {
-                            ...prev[n.chave],
-                            objetivo: Math.round(
-                              Number(e.target.value) * 100
-                            )
-                          }
-                        }))
-                      }
-                      required
-                    />
-
-                    <label>Prêmio:</label>
-
-                    <input
-                      type="text"
-                      value={metasColetivas[n.chave].premio}
-                      onChange={e =>
-                        setMetasColetivas(prev => ({
-                          ...prev,
-                          [n.chave]: {
-                            ...prev[n.chave],
-                            premio: e.target.value
-                          }
-                        }))
-                      }
-                      required
-                    />
-
-                  </div>
-                ))}
-
-                <button type="submit" className="login-btn">
-                  Salvar Metas Coletivas
-                </button>
+                <button type="submit" className="login-btn">Salvar Metas Coletivas</button>
               </form>
             </section>
 
             <section className="card big-card">
+              <h2>👤 Definir 3 Metas Individuais por Barbeiro</h2>
+              <p className="subtitle">Escolha o barbeiro e configure as metas Bronze, Prata e Ouro dele.</p>
 
-              <h2>👤 Definir Metas Individuais</h2>
+              <form onSubmit={salvarTresMetasBarbeiroForm} className="login-form">
+                <div className="form-group">
+                  <label><strong>Selecione o Barbeiro:</strong></label>
+                  <select value={barbeiroSelecionadoConfig} onChange={(e) => setBarbeiroSelecionadoConfig(e.target.value)} className="select-input" required>
+                    {barbeiros.map(b => <option key={b.id} value={b.id}>{b.nome} ({b.unidade})</option>)}
+                  </select>
+                </div>
 
-              <p className="subtitle">
-                Configure as metas Bronze, Prata e Ouro de cada barbeiro.
-                O barbeiro somente poderá visualizar suas próprias metas.
-              </p>
-
-              {barbeiros.length === 0 ? (
-                <p className="subtitle">
-                  Cadastre um barbeiro para configurar metas.
-                </p>
-              ) : (
-                <form
-                  onSubmit={salvarMetasBarbeiroForm}
-                  className="login-form"
-                >
-
-                  <div className="form-group">
-                    <label>Selecione o Barbeiro:</label>
-
-                    <select
-                      value={barbeiroSelecionadoConfig}
-                      onChange={e =>
-                        setBarbeiroSelecionadoConfig(e.target.value)
-                      }
-                      className="select-input"
-                      required
-                    >
-                      {barbeiros.map(b => (
-                        <option key={b.id} value={b.id}>
-                          {b.nome} ({b.unidade})
-                        </option>
-                      ))}
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #cd7f32' }}>
+                  <label style={{ color: '#cd7f32', fontWeight: 'bold' }}>🥉 Meta Individual Bronze:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '8px', marginBottom: '6px' }}>
+                    <select value={formTresMetasBarbeiro.bronzeTipo} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, bronzeTipo: e.target.value })} className="select-input">
+                      <option value="valor">Valor (R$)</option>
+                      <option value="porcentagem">Porcentagem (%)</option>
                     </select>
+                    <input type="number" step="0.01" placeholder="Meta" value={formTresMetasBarbeiro.bronzeMeta} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, bronzeMeta: e.target.value })} required />
                   </div>
+                  <input type="text" placeholder="Prêmio Bronze" value={formTresMetasBarbeiro.bronzePremio} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, bronzePremio: e.target.value })} required />
+                </div>
 
-                  {NIVEIS.map(n => {
-                    const f = formMetas[n.chave]
-                    if (!f) return null
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #c0c0c0' }}>
+                  <label style={{ color: '#c0c0c0', fontWeight: 'bold' }}>🥈 Meta Individual Prata:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '8px', marginBottom: '6px' }}>
+                    <select value={formTresMetasBarbeiro.prataTipo} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, prataTipo: e.target.value })} className="select-input">
+                      <option value="valor">Valor (R$)</option>
+                      <option value="porcentagem">Porcentagem (%)</option>
+                    </select>
+                    <input type="number" step="0.01" placeholder="Meta" value={formTresMetasBarbeiro.prataMeta} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, prataMeta: e.target.value })} required />
+                  </div>
+                  <input type="text" placeholder="Prêmio Prata" value={formTresMetasBarbeiro.prataPremio} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, prataPremio: e.target.value })} required />
+                </div>
 
-                    return (
-                      <div
-                        key={n.chave}
-                        className="meta-box"
-                        style={{ borderLeft: `4px solid ${n.cor}` }}
-                      >
+                <div style={{ background: '#111', padding: '10px', borderRadius: '6px', marginBottom: '10px', borderLeft: '4px solid #C6A15B' }}>
+                  <label style={{ color: '#C6A15B', fontWeight: 'bold' }}>🥇 Meta Individual Ouro:</label>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1.5fr', gap: '8px', marginBottom: '6px' }}>
+                    <select value={formTresMetasBarbeiro.ouroTipo} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, ouroTipo: e.target.value })} className="select-input">
+                      <option value="valor">Valor (R$)</option>
+                      <option value="porcentagem">Porcentagem (%)</option>
+                    </select>
+                    <input type="number" step="0.01" placeholder="Meta" value={formTresMetasBarbeiro.ouroMeta} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, ouroMeta: e.target.value })} required />
+                  </div>
+                  <input type="text" placeholder="Prêmio Ouro" value={formTresMetasBarbeiro.ouroPremio} onChange={(e) => setFormTresMetasBarbeiro({ ...formTresMetasBarbeiro, ouroPremio: e.target.value })} required />
+                </div>
 
-                        <label style={{
-                          color: n.cor,
-                          fontWeight: 'bold'
-                        }}>
-                          {n.icone} Meta Individual {n.nome}:
-                        </label>
-
-                        <div className="meta-row">
-
-                          <select
-                            value={f.tipo}
-                            onChange={e =>
-                              atualizarFormMeta(
-                                n.chave,
-                                'tipo',
-                                e.target.value
-                              )
-                            }
-                            className="select-input"
-                          >
-                            <option value="valor">Valor (R$)</option>
-                            <option value="porcentagem">
-                              Porcentagem (%)
-                            </option>
-                          </select>
-
-                          <input
-                            type="number"
-                            step="0.01"
-                            min="0.01"
-                            placeholder="Meta"
-                            value={f.meta}
-                            onChange={e =>
-                              atualizarFormMeta(
-                                n.chave,
-                                'meta',
-                                e.target.value
-                              )
-                            }
-                            required
-                          />
-                        </div>
-
-                        <input
-                          type="text"
-                          placeholder={`Prêmio ${n.nome}`}
-                          value={f.premio}
-                          onChange={e =>
-                            atualizarFormMeta(
-                              n.chave,
-                              'premio',
-                              e.target.value
-                            )
-                          }
-                          required
-                        />
-
-                      </div>
-                    )
-                  })}
-
-                  <button type="submit" className="login-btn">
-                    Salvar as 3 Metas deste Barbeiro
-                  </button>
-
-                </form>
-              )}
+                <button type="submit" className="login-btn">Salvar as 3 Metas deste Barbeiro</button>
+              </form>
             </section>
           </div>
         )
-
-      // ===== RANKINGS =====
-
       case 4:
         return (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '24px'
-          }}>
-
-            <section
-              className="card big-card"
-              style={{ border: '2px solid #C6A15B' }}
-            >
-
-              <div className="ranking-header">
-
-                <h2 style={{ marginBottom: 0 }}>
-                  🏆 RANKING INTERNO DE DESEMPENHO
-                </h2>
-
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px'
-                }}>
-                  <label style={{
-                    fontSize: '0.85rem',
-                    color: '#C6A15B',
-                    fontWeight: 'bold'
-                  }}>
-                    Filtro:
-                  </label>
-
-                  <select
-                    value={unidadeFiltroRanking}
-                    onChange={e =>
-                      setUnidadeFiltroRanking(e.target.value)
-                    }
-                    className="select-input"
-                  >
-                    <option value="TODAS">
-                      🌐 Geral (Rede Unificada)
-                    </option>
-
-                    {unidades.map(u => (
-                      <option key={u.id} value={u.nome}>
-                        📍 {u.nome}
-                      </option>
-                    ))}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+            <section className="card big-card" style={{ border: '2px solid #C6A15B' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+                <h2>🏆 RANKING INTERNO DE DESEMPENHO</h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <label style={{ fontSize: '0.85rem', color: '#C6A15B', fontWeight: 'bold' }}>Filtro:</label>
+                  <select value={unidadeFiltroRanking} onChange={(e) => setUnidadeFiltroRanking(e.target.value)} className="select-input" style={{ padding: '6px 12px', fontSize: '0.85rem' }}>
+                    <option value="TODAS">🌐 Geral (Rede Unificada)</option>
+                    {unidades.map(u => <option key={u.id} value={u.nome}>📍 {u.nome}</option>)}
                   </select>
                 </div>
               </div>
 
-              <ul className="ranking-list">
-
-                {barbeirosFiltradosDono.map((b, index) => {
-
-                  const metaOuro = (
-                    metasIndividuaisPorBarbeiro[b.id] ||
-                    METAS_PADRAO
-                  ).ouro
-
-                  const prog = progressoMeta(
-                    b.faturamento,
-                    metaOuro,
-                    faturamentoTotalRede
-                  )
-
+              <ul className="ranking-list" style={{ marginTop: '16px' }}>
+                {[...barbeirosFiltradosDono].sort((a, b) => b.faturamento - a.faturamento).map((b, index) => {
+                  const mBarb = metasIndividuaisPorBarbeiro[b.id] || {}
+                  const metaOuroVal = mBarb.ouro?.meta || 3000000
+                  const metaBase = mBarb.ouro?.tipo === 'valor' ? metaOuroVal : 3000000
+                  const progBarbeiro = Math.min(100, (b.faturamento / (metaBase > 0 ? metaBase : 1)) * 100)
                   return (
-                    <li
-                      key={b.id}
-                      className={
-                        index === 0 ? 'destaque-barbeiro' : ''
-                      }
-                      style={{
-                        flexDirection: 'column',
-                        alignItems: 'stretch',
-                        gap: '6px'
-                      }}
-                    >
-
-                      <div style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        gap: '8px',
-                        flexWrap: 'wrap'
-                      }}>
-
-                        <span>
-                          <strong>#{index + 1}</strong> {b.nome}
-                          <small style={{ color: '#9ca3af' }}>
-                            {' '}({b.unidade})
-                          </small>
-                        </span>
-
-                        <span className="gold-txt">
-                          {formatarReais(b.faturamento)}
-                          {' '}({prog.toFixed(1)}% meta ouro)
-                        </span>
+                    <li key={b.id} style={{ display: 'flex', flexDirection: 'column', gap: '6px', padding: '12px', background: index === 0 ? 'rgba(198, 161, 91, 0.1)' : '#0d0d0d', borderRadius: '8px', border: '1px solid rgba(255,255,255,0.06)', marginBottom: '8px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                        <span><strong>#{index + 1}</strong> {b.nome} <small style={{ color: '#9ca3af' }}>({b.unidade})</small></span>
+                        <span className="gold-txt">R$ {(b.faturamento / 100).toFixed(2)} ({progBarbeiro.toFixed(1)}% meta ouro)</span>
                       </div>
-
-                      <BarraProgresso pct={prog} altura={6} />
-
+                      <div style={{ background: '#222', height: '6px', borderRadius: '3px', overflow: 'hidden' }}>
+                        <div style={{ width: `${progBarbeiro}%`, background: progBarbeiro >= 100 ? '#34d399' : '#dc2626', height: '100%' }}></div>
+                      </div>
                     </li>
                   )
                 })}
-
               </ul>
             </section>
 
             {mostrarRankingRegional && (
-              <section
-                className="card big-card"
-                style={{
-                  border: '2px dashed #7c3aed',
-                  background: 'rgba(124, 58, 237, 0.05)'
-                }}
-              >
-
-                <h2>
-                  ⭐ RANKING REGIONAL ENTRE BARBEARIAS (SaaS)
-                </h2>
-
-                <ul className="ranking-list">
+              <section className="card big-card" style={{ border: '2px dashed #7c3aed', background: 'rgba(124, 58, 237, 0.05)' }}>
+                <h2>⭐ RANKING REGIONAL ENTRE BARBEARIAS (SaaS)</h2>
+                <ul className="ranking-list" style={{ marginTop: '12px' }}>
                   {barbeariasSaaS.map((barb, idx) => (
                     <li key={barb.id}>
-                      <span>
-                        <strong>#{idx + 1}</strong> 💈 {barb.nome}
-                      </span>
-
-                      <span className="gold-txt">
-                        Status: {barb.statusSaaS}
-                      </span>
+                      <span><strong>#{idx + 1}</strong> 💈 {barb.nome}</span>
+                      <span className="gold-txt">Status: {barb.statusSaaS}</span>
                     </li>
                   ))}
                 </ul>
@@ -2294,360 +767,120 @@ export default function App() {
             )}
           </div>
         )
-
       default:
         return null
     }
   }
 
-  // ===== PAINEL DO BARBEIRO =====
-
+  // PAINEL DO BARBEIRO
   const renderConteudoBarbeiro = () => {
-
-    if (!barbeiroLogado) {
-      return (
-        <section className="card big-card">
-          <h2>Cadastro não encontrado</h2>
-          <p className="subtitle">
-            Seu cadastro foi removido. Encerre a sessão e fale com o dono.
-          </p>
-        </section>
-      )
+    const barbeiroAtual = barbeiros.find(b => b.id === barbeiroLogado?.id) || barbeiroLogado
+    const barbeirosDaMinhaUnidade = barbeiros.filter(b => b.unidade === barbeiroAtual?.unidade)
+    const mBarbLogado = metasIndividuaisPorBarbeiro[barbeiroAtual?.id] || {
+      bronze: { meta: 1000000, premio: 'Folga' },
+      prata: { meta: 2000000, premio: 'Bônus' },
+      ouro: { meta: 3000000, premio: 'Viagem' }
     }
+    const faturamentoAtualBarbeiro = barbeiroAtual?.faturamento || 0
 
-    const barbeirosDaMinhaUnidade = barbeiros
-      .filter(b => b.unidade === barbeiroLogado.unidade)
-      .sort((a, b) => b.faturamento - a.faturamento)
-
-    const minhasMetas =
-      metasIndividuaisPorBarbeiro[barbeiroLogado.id] ||
-      METAS_PADRAO
-
-    const meuFaturamento = barbeiroLogado.faturamento
+    const progB = Math.min(100, (faturamentoAtualBarbeiro / (mBarbLogado.bronze?.tipo === 'valor' ? mBarbLogado.bronze.meta : 3000000)) * 100)
+    const progP = Math.min(100, (faturamentoAtualBarbeiro / (mBarbLogado.prata?.tipo === 'valor' ? mBarbLogado.prata.meta : 3000000)) * 100)
+    const progO = Math.min(100, (faturamentoAtualBarbeiro / (mBarbLogado.ouro?.tipo === 'valor' ? mBarbLogado.ouro.meta : 3000000)) * 100)
 
     switch (abaAtiva) {
-
-      // ===== MEU DESEMPENHO E MINHA SENHA =====
-
       case 0:
         return (
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            gap: '24px'
-          }}>
-
-            <section className="card big-card">
-
-              <h2>Meu Desempenho</h2>
-
-              <p className="subtitle">
-                Profissional: <strong>{barbeiroLogado.nome}</strong>
-                {' '}({barbeiroLogado.unidade})
-              </p>
-
-              <div className="kpi-grid">
-
-                <div className="card kpi-card">
-                  <h3>Meu Faturamento Acumulado</h3>
-                  <p className="kpi-value">
-                    {formatarReais(meuFaturamento)}
-                  </p>
-                </div>
-
-                <div className="card kpi-card">
-                  <h3>Minha Participação na Rede</h3>
-                  <p className="kpi-value">
-                    {faturamentoTotalRede > 0
-                      ? (
-                          (meuFaturamento / faturamentoTotalRede) * 100
-                        ).toFixed(1)
-                      : '0.0'}%
-                  </p>
-                </div>
-
-              </div>
-            </section>
-
-            <section className="card big-card">
-
-              <h2>🔐 Alterar Minha Senha</h2>
-
-              <p className="subtitle">
-                Você pode trocar sua senha de acesso sempre que precisar.
-                Somente você tem acesso a esta alteração nesta tela.
-              </p>
-
-              <form
-                onSubmit={alterarMinhaSenha}
-                className="login-form"
-              >
-
-                <div className="form-group">
-                  <label>Senha Atual</label>
-
-                  <input
-                    type="password"
-                    value={senhaAtual}
-                    onChange={e => setSenhaAtual(e.target.value)}
-                    placeholder="Digite sua senha atual"
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Nova Senha</label>
-
-                  <input
-                    type="password"
-                    value={novaSenha}
-                    onChange={e => setNovaSenha(e.target.value)}
-                    placeholder="Digite sua nova senha"
-                    minLength={4}
-                    required
-                  />
-                </div>
-
-                <div className="form-group">
-                  <label>Confirmar Nova Senha</label>
-
-                  <input
-                    type="password"
-                    value={confirmarNovaSenha}
-                    onChange={e =>
-                      setConfirmarNovaSenha(e.target.value)
-                    }
-                    placeholder="Digite novamente sua nova senha"
-                    minLength={4}
-                    required
-                  />
-                </div>
-
-                <button type="submit" className="login-btn">
-                  Alterar Minha Senha
-                </button>
-
-              </form>
-            </section>
-          </div>
+          <section className="card big-card">
+            <h2>Meu Desempenho</h2>
+            <p className="subtitle">Profissional: <strong>{barbeiroAtual?.nome}</strong> ({barbeiroAtual?.unidade})</p>
+            <div className="kpi-grid"><div className="card kpi-card"><h3>Meu Faturamento Acumulado</h3><p className="kpi-value">R$ {(faturamentoAtualBarbeiro / 100).toFixed(2)}</p></div></div>
+          </section>
         )
-
-      // ===== MINHAS METAS: SOMENTE VISUALIZAÇÃO =====
-
       case 1:
         return (
           <section className="card big-card">
-
             <h2>Minhas 3 Metas Individuais & Progresso</h2>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginTop: '10px' }}>
+              <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #cd7f32' }}>
+                <p style={{ color: '#cd7f32', fontWeight: 'bold' }}>🥉 Meta Bronze: R$ {(mBarbLogado.bronze?.meta / 100).toFixed(2)}</p>
+                <div style={{ background: '#222', height: '10px', borderRadius: '5px', margin: '6px 0', overflow: 'hidden' }}>
+                  <div style={{ width: `${progB}%`, background: progB >= 100 ? '#34d399' : '#dc2626', height: '100%' }}></div>
+                </div>
+                <p style={{ fontSize: '0.8rem' }}>Prêmio: <strong>{mBarbLogado.bronze?.premio}</strong></p>
+              </div>
 
-            <p className="subtitle">
-              Estas metas são definidas pelo dono da barbearia.
-              Aqui você pode acompanhar seu desempenho e suas premiações.
-            </p>
+              <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #c0c0c0' }}>
+                <p style={{ color: '#c0c0c0', fontWeight: 'bold' }}>🥈 Meta Prata: R$ {(mBarbLogado.prata?.meta / 100).toFixed(2)}</p>
+                <div style={{ background: '#222', height: '10px', borderRadius: '5px', margin: '6px 0', overflow: 'hidden' }}>
+                  <div style={{ width: `${progP}%`, background: progP >= 100 ? '#34d399' : '#dc2626', height: '100%' }}></div>
+                </div>
+                <p style={{ fontSize: '0.8rem' }}>Prêmio: <strong>{mBarbLogado.prata?.premio}</strong></p>
+              </div>
 
-            <div style={{
-              display: 'flex',
-              flexDirection: 'column',
-              gap: '16px',
-              marginTop: '10px'
-            }}>
-
-              {NIVEIS.map(n => {
-
-                const meta = minhasMetas[n.chave]
-
-                const pct = progressoMeta(
-                  meuFaturamento,
-                  meta,
-                  faturamentoTotalRede
-                )
-
-                return (
-                  <div
-                    key={n.chave}
-                    className="meta-box"
-                    style={{
-                      background: '#0a0a0a',
-                      borderLeft: `4px solid ${n.cor}`
-                    }}
-                  >
-
-                    <p style={{
-                      color: n.cor,
-                      fontWeight: 'bold'
-                    }}>
-                      {n.icone} Meta {n.nome}:
-                      {' '}{rotuloMeta(meta)}
-                      {' '}({pct.toFixed(1)}%)
-                    </p>
-
-                    <BarraProgresso pct={pct} />
-
-                    <p style={{ fontSize: '0.8rem' }}>
-                      Prêmio: <strong>{meta?.premio || '-'}</strong>
-                    </p>
-
-                    <p style={{ fontSize: '0.8rem' }}>
-                      {pct >= 100
-                        ? '🎉 Parabéns! Você atingiu esta meta!'
-                        : 'Continue trabalhando para alcançar sua meta!'}
-                    </p>
-
-                  </div>
-                )
-              })}
-
+              <div style={{ background: '#0a0a0a', padding: '12px', borderRadius: '8px', borderLeft: '4px solid #C6A15B' }}>
+                <p style={{ color: '#C6A15B', fontWeight: 'bold' }}>🥇 Meta Ouro: R$ {(mBarbLogado.ouro?.meta / 100).toFixed(2)}</p>
+                <div style={{ background: '#222', height: '10px', borderRadius: '5px', margin: '6px 0', overflow: 'hidden' }}>
+                  <div style={{ width: `${progO}%`, background: progO >= 100 ? '#34d399' : '#dc2626', height: '100%' }}></div>
+                </div>
+                <p style={{ fontSize: '0.8rem' }}>Prêmio: <strong>{mBarbLogado.ouro?.premio}</strong></p>
+              </div>
             </div>
           </section>
         )
-
-      // ===== RANKING DA UNIDADE =====
-
       case 2:
         return (
-          <section
-            className="card big-card"
-            style={{ border: '2px solid #C6A15B' }}
-          >
-
-            <h2>
-              🏆 RANKING OFICIAL — {barbeiroLogado.unidade.toUpperCase()}
-            </h2>
-
-            <ul className="ranking-list">
-
-              {barbeirosDaMinhaUnidade.map((b, index) => {
-
-                const meuRegistro = b.id === barbeiroLogado.id
-
-                const prog = progressoMeta(
-                  b.faturamento,
-                  (
-                    metasIndividuaisPorBarbeiro[b.id] ||
-                    METAS_PADRAO
-                  ).ouro,
-                  faturamentoTotalRede
-                )
-
+          <section className="card big-card" style={{ border: '2px solid #C6A15B' }}>
+            <h2>🏆 RANKING OFICIAL — {barbeiroAtual?.unidade.toUpperCase()}</h2>
+            <ul className="ranking-list" style={{ marginTop: '16px' }}>
+              {[...barbeirosDaMinhaUnidade].sort((a, b) => b.faturamento - a.faturamento).map((b, index) => {
+                const mX = metasIndividuaisPorBarbeiro[b.id] || {}
+                const mOuro = mX.ouro?.meta || 3000000
+                const prg = Math.min(100, (b.faturamento / mOuro) * 100)
                 return (
-                  <li
-                    key={b.id}
-                    className={
-                      meuRegistro ? 'destaque-barbeiro' : ''
-                    }
-                  >
-
-                    <span>
-                      <strong>#{index + 1}</strong> {b.nome}
-                    </span>
-
-                    <span>
-                      {meuRegistro
-                        ? `${formatarReais(b.faturamento)} (${prog.toFixed(1)}% meta ouro)`
-                        : '*** Oculto'}
-                    </span>
-
+                  <li key={b.id} className={b.id === barbeiroAtual?.id ? 'destaque-barbeiro' : ''} style={{ display: 'flex', flexDirection: 'column', gap: '4px', padding: '10px', background: '#0d0d0d', borderRadius: '6px', marginBottom: '8px' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between' }}>
+                      <span><strong>#{index + 1}</strong> {b.nome}</span>
+                      <span>{b.id === barbeiroAtual?.id ? `R$ ${(b.faturamento / 100).toFixed(2)} (${prg.toFixed(1)}% meta ouro)` : '*** Oculto'}</span>
+                    </div>
                   </li>
                 )
               })}
-
             </ul>
           </section>
         )
-
       default:
         return null
     }
   }
 
-  // ===== INTERFACE PRINCIPAL =====
+  const menuAtual = perfilAtivo === 'admin' ? menuAdmin : perfilAtivo === 'dono' ? menuDono : menuBarbeiro
+  const nomeBarbeiroHeader = barbeiros.find(b => b.id === barbeiroLogado?.id)?.nome || barbeiroLogado?.nome || ''
 
   return (
     <div className="app-layout">
-
       <aside className="sidebar">
-
-        <div className="brand">
-          <h2>AS GESTÃO</h2>
-          <span>PRO SaaS</span>
-        </div>
-
+        <div className="brand"><h2>AS GESTÃO</h2><span>PRO SaaS</span></div>
         <nav className="sidebar-menu">
-
           {menuAtual.map((item, index) => (
-            <button
-              key={item}
-              className={`menu-btn ${
-                abaAtiva === index ? 'active' : ''
-              }`}
-              onClick={() => setAbaAtiva(index)}
-            >
-              {item}
-            </button>
+            <button key={item} className={`menu-btn ${abaAtiva === index ? 'active' : ''}`} onClick={() => setAbaAtiva(index)}>{item}</button>
           ))}
-
         </nav>
-
-        <button
-          onClick={handleLogout}
-          className="logout-btn"
-        >
-          Encerrar Sessão
-        </button>
-
+        <button onClick={handleLogout} className="logout-btn">Encerrar Sessão</button>
       </aside>
 
       <main className="main-content">
-
         <header className="header">
-
           <h1>{menuAtual[abaAtiva]}</h1>
-
           <div className="user-profile">
-
-            <span className="avatar">
-              {perfilAtivo === 'admin'
-                ? 'SA'
-                : perfilAtivo === 'dono'
-                  ? 'DO'
-                  : (
-                      barbeiroLogado?.nome
-                        ?.substring(0, 2)
-                        .toUpperCase() || '??'
-                    )}
-            </span>
-
-            <span className="username">
-
-              {perfilAtivo === 'admin' &&
-                `${ADMIN_LOGIN} (Super Admin)`}
-
-              {perfilAtivo === 'dono' &&
-                (
-                  barbeariaLogada
-                    ? barbeariaLogada.nome
-                    : 'Dono'
-                )}
-
-              {perfilAtivo === 'barbeiro' &&
-                (
-                  barbeiroLogado?.nome ||
-                  'Barbeiro'
-                )}
-
-            </span>
-
+            <span className="avatar">{perfilAtivo === 'admin' ? 'SA' : perfilAtivo === 'dono' ? 'DO' : nomeBarbeiroHeader.substring(0, 2).toUpperCase()}</span>
+            <span className="username">{perfilAtivo === 'admin' && 'Adriel2711 (Super Admin)'}{perfilAtivo === 'dono' && (barbeariaLogada ? barbeariaLogada.nome : 'Dono')}{perfilAtivo === 'barbeiro' && nomeBarbeiroHeader}</span>
           </div>
         </header>
 
         {perfilAtivo === 'admin' && renderConteudoAdmin()}
-
         {perfilAtivo === 'dono' && renderConteudoDono()}
-
         {perfilAtivo === 'barbeiro' && renderConteudoBarbeiro()}
-
       </main>
     </div>
   )
 }
-''

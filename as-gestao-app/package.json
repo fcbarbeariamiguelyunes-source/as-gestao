@@ -11,6 +11,7 @@
 		"deploy": "npm run build && wrangler deploy"
 	},
 	"dependencies": {
+		"firebase": "^13.2.0",
 		"react": "^19.3.1",
 		"react-dom": "^19.3.1"
 	},

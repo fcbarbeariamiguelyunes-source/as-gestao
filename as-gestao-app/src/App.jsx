@@ -3,8 +3,16 @@ import { useNuvem } from './useNuvem'
 import './App.css'
 
 const menuAdmin = ['Visão Geral SaaS', 'Licenças & Testes', 'Barbearias SaaS', 'Vistoria & Auditoria', 'Campeonatos Regionais']
-const menuDono = ['Visão Geral', 'Unidades & Equipe', 'Lançamento de Vendas', 'Metas & Premiações', '🏆 Rankings & Competições']
-const menuBarbeiro = ['Meu Desempenho', 'Minhas Metas', '🏆 Ranking da Minha Unidade']
+const menuDono = ['Visão Geral', 'Unidades & Equipe', 'Lançamento de Vendas', '📜 Histórico de Lançamentos', 'Metas & Premiações', '🏆 Rankings & Competições', '⚙️ Configurações']
+const menuBarbeiro = ['Meu Desempenho', 'Minhas Metas', '🏆 Ranking da Minha Unidade', '⚙️ Configurações']
+
+const hojeISO = () => {
+  const d = new Date()
+  const m = String(d.getMonth() + 1).padStart(2, '0')
+  const dia = String(d.getDate()).padStart(2, '0')
+  return `${d.getFullYear()}-${m}-${dia}`
+}
+const formatarData = (iso) => (iso ? iso.split('-').reverse().join('/') : '')
 
 export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -13,37 +21,57 @@ export default function App() {
   const [usuario, setUsuario] = useState({ login: '', senha: '' })
   const [erroLogin, setErroLogin] = useState('')
   const [mostrarSenha, setMostrarSenha] = useState(false)
-  const [abaAtiva, setAbaAtiva] = useState(1)
+  const [abaAtiva, setAbaAtiva] = useState(1) // Inicia na aba de Unidades para testar a edição
 
   const [unidadeFiltroRanking, setUnidadeFiltroRanking] = useState('TODAS')
 
-  // ===== DADOS NA NUVEM (Firebase) =====
+  // 1. Barbearias SaaS (Persistido)
   const [barbeariasSaaS, setBarbeariasSaaS, ok1] = useNuvem('barbearias_saas', [
     { id: 1, nome: 'Barbearia Mestre', usuarioDono: 'dono', senhaDono: '123456', plano: 'Teste Grátis', diasRestantes: 7, statusPagamento: 'Pendente', statusSaaS: 'Em Teste' },
     { id: 2, nome: 'Imperial Barber', usuarioDono: 'imperial', senhaDono: '123456', plano: 'Anual Pro', diasRestantes: 330, statusPagamento: 'Pago', statusSaaS: 'Ativo' }
   ])
+  const [novaBarbeariaSaaS, setNovaBarbeariaSaaS] = useState({ nome: '', usuarioDono: '', senhaDono: '', plano: 'Teste Grátis (7 Dias)' })
 
+  // 2. Campeonatos Regionais
   const [campeonatosRegionais, setCampeonatosRegionais, ok2] = useNuvem('campeonatos_regionais', [
     { id: 1, titulo: 'Batalha de Barbeiros - Regional SP', status: 'Em Andamento', premio: 'Troféu Ouro + Viagem', ativo: true }
   ])
+  const [novoCampRegional, setNovoCampRegional] = useState({ titulo: '', premio: '' })
 
+  const [barbeariaLogada, setBarbeariaLogada] = useState(null)
+
+  // 3. Unidades (Persistido) com suporte a edição
   const [unidades, setUnidades, ok3] = useNuvem('unidades', [
     { id: 1, nome: 'Unidade Centro', status: 'Ativa', gerente: 'Carlos' },
     { id: 2, nome: 'Unidade Shopping', status: 'Ativa', gerente: 'Mariana' }
   ])
+  const [novaUnidade, setNovaUnidade] = useState('')
+  const [editandoUnidadeId, setEditandoUnidadeId] = useState(null)
+  const [nomeUnidadeEdit, setNomeUnidadeEdit] = useState('')
 
+  // 4. Barbeiros (Persistido)
   const [barbeiros, setBarbeiros, ok4] = useNuvem('barbeiros', [
     { id: 1, nome: 'Carlos Silva', telefone: '11988881111', senha: '123', unidade: 'Unidade Centro', faturamento: 1850000 },
     { id: 2, nome: 'Marcos Souza', telefone: '11977772222', senha: '123', unidade: 'Unidade Centro', faturamento: 1420000 },
     { id: 3, nome: 'Mariana Santos', telefone: '11966663333', senha: '123', unidade: 'Unidade Shopping', faturamento: 2100000 }
   ])
+  const [novoBarbeiro, setNovoBarbeiro] = useState({ nome: '', telefone: '', senha: '', unidade: 'Unidade Centro' })
 
+  // Edição de barbeiro (nome e unidade)
+  const [editandoBarbeiroId, setEditandoBarbeiroId] = useState(null)
+  const [barbeiroEdit, setBarbeiroEdit] = useState({ nome: '', unidade: '' })
+
+  // Lançamento de Vendas
+  const [lancamentoValor, setLancamentoValor] = useState({ unidade: '', barbeiroId: '', valor: '', tipo: 'Corte/Serviço', data: hojeISO() })
+
+  // 5. Metas Coletivas da Rede
   const [metasColetivas, setMetasColetivas, ok5] = useNuvem('metas_coletivas', {
     bronze: { objetivo: 4000000, premio: 'Churrasco da Equipe' },
     prata: { objetivo: 7000000, premio: 'Churrasco + R$ 300 em Bônus para cada' },
     ouro: { objetivo: 10000000, premio: 'Churrasco + R$ 600 em Bônus + Troféu Ouro' }
   })
 
+  // 6. Três Metas Individuais por Barbeiro
   const [metasIndividuaisPorBarbeiro, setMetasIndividuaisPorBarbeiro, ok6] = useNuvem('metas_tres_individuais', {
     1: {
       bronze: { tipo: 'valor', meta: 1000000, premio: 'Folga Extra' },
@@ -62,21 +90,6 @@ export default function App() {
     }
   })
 
-  // ===== ESTADOS LOCAIS (não precisam ir para a nuvem) =====
-  const [novaBarbeariaSaaS, setNovaBarbeariaSaaS] = useState({ nome: '', usuarioDono: '', senhaDono: '', plano: 'Teste Grátis (7 Dias)' })
-  const [novoCampRegional, setNovoCampRegional] = useState({ titulo: '', premio: '' })
-  const [barbeariaLogada, setBarbeariaLogada] = useState(null)
-
-  const [novaUnidade, setNovaUnidade] = useState('')
-  const [editandoUnidadeId, setEditandoUnidadeId] = useState(null)
-  const [nomeUnidadeEdit, setNomeUnidadeEdit] = useState('')
-
-  const [novoBarbeiro, setNovoBarbeiro] = useState({ nome: '', telefone: '', senha: '', unidade: 'Unidade Centro' })
-  const [editandoBarbeiroId, setEditandoBarbeiroId] = useState(null)
-  const [barbeiroEdit, setBarbeiroEdit] = useState({ nome: '', unidade: '' })
-
-  const [lancamentoValor, setLancamentoValor] = useState({ unidade: '', barbeiroId: '', valor: '', tipo: 'Corte/Serviço' })
-
   const [barbeiroSelecionadoConfig, setBarbeiroSelecionadoConfig] = useState('1')
   const [formTresMetasBarbeiro, setFormTresMetasBarbeiro] = useState({
     bronzeTipo: 'valor', bronzeMeta: '1000', bronzePremio: 'Folga Extra',
@@ -86,7 +99,16 @@ export default function App() {
 
   const [barbeiroLogado, setBarbeiroLogado] = useState(null)
 
-  // Carrega o formulário de metas do barbeiro selecionado (e de novo quando os dados chegam da nuvem)
+  // Histórico de lançamentos (na nuvem)
+  const [lancamentos, setLancamentos, ok7] = useNuvem('lancamentos', [])
+  const [filtroHist, setFiltroHist] = useState({ unidade: 'TODAS', data: '' })
+  const [editandoLancId, setEditandoLancId] = useState(null)
+  const [lancEdit, setLancEdit] = useState({ barbeiroId: '', valor: '', data: '' })
+
+  // Trocar senha (Configurações)
+  const [formSenha, setFormSenha] = useState({ atual: '', nova: '', confirmar: '' })
+  const [msgSenha, setMsgSenha] = useState({ tipo: '', texto: '' })
+
   useEffect(() => {
     if (barbeiroSelecionadoConfig && metasIndividuaisPorBarbeiro[barbeiroSelecionadoConfig]) {
       const m = metasIndividuaisPorBarbeiro[barbeiroSelecionadoConfig]
@@ -119,7 +141,7 @@ export default function App() {
       const barbeariaEncontrada = barbeariasSaaS.find(
         b => b.usuarioDono === usuario.login && b.senhaDono === usuario.senha
       )
-      if (barbeariaEncontrada || (usuario.login === 'dono' && usuario.senha === '123456')) {
+      if (barbeariaEncontrada || (usuario.login === 'dono' && usuario.senha === '123456' && !barbeariasSaaS.some(b => b.usuarioDono === 'dono'))) {
         setBarbeariaLogada(barbeariaEncontrada || { nome: 'Barbearia Principal' })
         setIsLoggedIn(true)
       } else {
@@ -146,7 +168,7 @@ export default function App() {
     setAbaAtiva(0)
   }
 
-  // Unidades
+  // Gestão de Unidades com Edição
   const adicionarUnidade = (e) => {
     e.preventDefault()
     if (!novaUnidade.trim()) return
@@ -166,6 +188,7 @@ export default function App() {
     const unidadeAntiga = unidades.find(u => u.id === id)
 
     setUnidades(unidades.map(u => u.id === id ? { ...u, nome: nomeUnidadeEdit } : u))
+    // Mantém os barbeiros vinculados à unidade renomeada
     setBarbeiros(barbeiros.map(b =>
       b.unidade === unidadeAntiga.nome ? { ...b, unidade: nomeUnidadeEdit } : b
     ))
@@ -174,7 +197,6 @@ export default function App() {
     alert('Unidade atualizada com sucesso!')
   }
 
-  // Barbeiros
   const cadastrarBarbeiro = (e) => {
     e.preventDefault()
     if (!novoBarbeiro.nome.trim() || !novoBarbeiro.telefone.trim()) return
@@ -195,11 +217,13 @@ export default function App() {
   }
 
   const apagarBarbeiro = (id, nomeBarbeiro) => {
-    if (window.confirm(`Deseja remover o barbeiro ${nomeBarbeiro}?`)) {
+    if (window.confirm(`Deseja remover o barbeiro ${nomeBarbeiro}? Os lançamentos dele também serão removidos do histórico.`)) {
       setBarbeiros(barbeiros.filter(b => b.id !== id))
+      setLancamentos(lancamentos.filter(l => l.barbeiroId !== id))
     }
   }
 
+  // Edição de barbeiro
   const iniciarEdicaoBarbeiro = (b) => {
     setEditandoBarbeiroId(b.id)
     setBarbeiroEdit({ nome: b.nome, unidade: b.unidade })
@@ -219,15 +243,91 @@ export default function App() {
     if (!lancamentoValor.barbeiroId || !lancamentoValor.valor) return
 
     const valorCentavos = Math.round(parseFloat(lancamentoValor.valor) * 100)
-    setBarbeiros(barbeiros.map(b => {
-      if (b.id === Number(lancamentoValor.barbeiroId)) {
-        return { ...b, faturamento: b.faturamento + valorCentavos }
-      }
-      return b
-    }))
+    if (isNaN(valorCentavos) || valorCentavos <= 0) {
+      alert('Informe um valor válido.')
+      return
+    }
+    const barbeiroId = Number(lancamentoValor.barbeiroId)
+    const data = lancamentoValor.data || hojeISO()
 
-    setLancamentoValor({ unidade: lancamentoValor.unidade, barbeiroId: '', valor: '', tipo: 'Corte/Serviço' })
+    setBarbeiros(barbeiros.map(b => (b.id === barbeiroId ? { ...b, faturamento: b.faturamento + valorCentavos } : b)))
+
+    const novoId = Math.max(0, ...lancamentos.map(l => l.id)) + 1
+    setLancamentos([...lancamentos, { id: novoId, barbeiroId, valor: valorCentavos, tipo: lancamentoValor.tipo, data, criadoEm: Date.now() }])
+
+    // Mantém unidade e data para facilitar vários lançamentos seguidos
+    setLancamentoValor({ unidade: lancamentoValor.unidade, barbeiroId: '', valor: '', tipo: 'Corte/Serviço', data })
     alert('Lançamento realizado com sucesso!')
+  }
+
+  // Histórico: editar e apagar lançamentos
+  const iniciarEdicaoLancamento = (l) => {
+    setEditandoLancId(l.id)
+    setLancEdit({ barbeiroId: String(l.barbeiroId), valor: (l.valor / 100).toFixed(2), data: l.data })
+  }
+
+  const salvarEdicaoLancamento = (id) => {
+    const antigo = lancamentos.find(l => l.id === id)
+    if (!antigo) return
+    const novoValor = Math.round(parseFloat(lancEdit.valor) * 100)
+    if (!lancEdit.barbeiroId || isNaN(novoValor) || novoValor <= 0 || !lancEdit.data) {
+      alert('Preencha barbeiro, valor e data corretamente.')
+      return
+    }
+    const novoBarbeiroId = Number(lancEdit.barbeiroId)
+
+    setBarbeiros(barbeiros.map(b => {
+      let fat = b.faturamento
+      if (b.id === antigo.barbeiroId) fat -= antigo.valor
+      if (b.id === novoBarbeiroId) fat += novoValor
+      return fat === b.faturamento ? b : { ...b, faturamento: Math.max(0, fat) }
+    }))
+    setLancamentos(lancamentos.map(l => (l.id === id ? { ...l, barbeiroId: novoBarbeiroId, valor: novoValor, data: lancEdit.data } : l)))
+    setEditandoLancId(null)
+  }
+
+  const apagarLancamento = (l) => {
+    if (!window.confirm(`Apagar o lançamento de R$ ${(l.valor / 100).toFixed(2)} do dia ${formatarData(l.data)}?`)) return
+    setBarbeiros(barbeiros.map(b => (b.id === l.barbeiroId ? { ...b, faturamento: Math.max(0, b.faturamento - l.valor) } : b)))
+    setLancamentos(lancamentos.filter(x => x.id !== l.id))
+  }
+
+  // Configurações: trocar a própria senha (dono ou barbeiro)
+  const trocarSenha = (e) => {
+    e.preventDefault()
+    const ehDono = perfilAtivo === 'dono'
+    const donoAtual = barbeariasSaaS.find(b => b.id === barbeariaLogada?.id)
+    const barbeiroAtualCfg = barbeiros.find(b => b.id === barbeiroLogado?.id)
+    const senhaReal = ehDono ? donoAtual?.senhaDono : barbeiroAtualCfg?.senha
+
+    if (ehDono ? !donoAtual : !barbeiroAtualCfg) {
+      setMsgSenha({ tipo: 'erro', texto: 'Não foi possível localizar a sua conta.' })
+      return
+    }
+    if (formSenha.atual !== senhaReal) {
+      setMsgSenha({ tipo: 'erro', texto: 'A senha atual está incorreta.' })
+      return
+    }
+    if (formSenha.nova.length < 4) {
+      setMsgSenha({ tipo: 'erro', texto: 'A nova senha precisa ter pelo menos 4 caracteres.' })
+      return
+    }
+    if (formSenha.nova === formSenha.atual) {
+      setMsgSenha({ tipo: 'erro', texto: 'A nova senha deve ser diferente da atual.' })
+      return
+    }
+    if (formSenha.nova !== formSenha.confirmar) {
+      setMsgSenha({ tipo: 'erro', texto: 'A confirmação não é igual à nova senha.' })
+      return
+    }
+
+    if (ehDono) {
+      setBarbeariasSaaS(barbeariasSaaS.map(b => (b.id === donoAtual.id ? { ...b, senhaDono: formSenha.nova } : b)))
+    } else {
+      setBarbeiros(barbeiros.map(b => (b.id === barbeiroAtualCfg.id ? { ...b, senha: formSenha.nova } : b)))
+    }
+    setFormSenha({ atual: '', nova: '', confirmar: '' })
+    setMsgSenha({ tipo: 'ok', texto: 'Senha alterada com sucesso! Use a nova senha no próximo acesso.' })
   }
 
   const salvarMetasColetivasForm = (e) => {
@@ -296,7 +396,7 @@ export default function App() {
   }
 
   // TELA DE CARREGAMENTO (espera os dados chegarem da nuvem)
-  if (!(ok1 && ok2 && ok3 && ok4 && ok5 && ok6)) {
+  if (!(ok1 && ok2 && ok3 && ok4 && ok5 && ok6 && ok7)) {
     return (
       <div className="login-wrapper">
         <div className="login-card">
@@ -344,6 +444,50 @@ export default function App() {
           </form>
         </div>
       </div>
+    )
+  }
+
+  // CONFIGURAÇÕES (dono e barbeiro): perfil + trocar senha
+  const renderConfiguracao = () => {
+    const ehDono = perfilAtivo === 'dono'
+    const donoAtual = barbeariasSaaS.find(b => b.id === barbeariaLogada?.id)
+    const barbeiroAtualCfg = barbeiros.find(b => b.id === barbeiroLogado?.id)
+    const nomeExibido = ehDono ? (donoAtual?.nome || barbeariaLogada?.nome || 'Barbearia') : barbeiroAtualCfg?.nome
+    const usuarioExibido = ehDono ? donoAtual?.usuarioDono : barbeiroAtualCfg?.telefone
+    const podeTrocar = ehDono ? !!donoAtual : !!barbeiroAtualCfg
+
+    return (
+      <section className="card big-card" style={{ maxWidth: '560px' }}>
+        <h2>⚙️ Configurações</h2>
+        <p className="subtitle">
+          {ehDono ? 'Barbearia' : 'Profissional'}: <strong>{nomeExibido}</strong>
+          {usuarioExibido ? <> &nbsp;|&nbsp; Login: <strong>{usuarioExibido}</strong></> : null}
+        </p>
+
+        <h3 style={{ marginTop: '16px' }}>🔑 Trocar senha</h3>
+        {!podeTrocar ? (
+          <p className="subtitle">Esta conta usa o acesso padrão e não pode trocar a senha por aqui. Peça ao Super Admin para cadastrar a barbearia.</p>
+        ) : (
+          <form onSubmit={trocarSenha} className="login-form" style={{ marginTop: '10px' }}>
+            <div className="form-group">
+              <label>Senha atual</label>
+              <input type="password" value={formSenha.atual} onChange={(e) => setFormSenha({ ...formSenha, atual: e.target.value })} required />
+            </div>
+            <div className="form-group">
+              <label>Nova senha</label>
+              <input type="password" value={formSenha.nova} onChange={(e) => setFormSenha({ ...formSenha, nova: e.target.value })} required />
+            </div>
+            <div className="form-group">
+              <label>Confirmar nova senha</label>
+              <input type="password" value={formSenha.confirmar} onChange={(e) => setFormSenha({ ...formSenha, confirmar: e.target.value })} required />
+            </div>
+            {msgSenha.texto && (
+              <span style={{ color: msgSenha.tipo === 'ok' ? '#34d399' : '#f87171', fontSize: '0.9rem' }}>{msgSenha.texto}</span>
+            )}
+            <button type="submit" className="login-btn">Salvar nova senha</button>
+          </form>
+        )}
+      </section>
     )
   }
 
@@ -459,6 +603,7 @@ export default function App() {
     const campeonatoAtivoAdmin = campeonatosRegionais.some(c => c.ativo)
     const mostrarRankingRegional = barbeariasSaaS.length > 1 && campeonatoAtivoAdmin
 
+    // Lançamento: com mais de uma unidade, escolhe a unidade primeiro
     const temVariasUnidades = unidades.length > 1
     const barbeirosLancamento = temVariasUnidades
       ? (lancamentoValor.unidade ? barbeiros.filter(b => b.unidade === lancamentoValor.unidade) : [])
@@ -466,6 +611,16 @@ export default function App() {
     const barbeirosTabelaFaturamento = temVariasUnidades && lancamentoValor.unidade
       ? barbeiros.filter(b => b.unidade === lancamentoValor.unidade)
       : barbeiros
+
+    const lancsFiltrados = [...lancamentos]
+      .filter(l => {
+        const bb = barbeiros.find(b => b.id === l.barbeiroId)
+        if (filtroHist.unidade !== 'TODAS' && bb?.unidade !== filtroHist.unidade) return false
+        if (filtroHist.data && l.data !== filtroHist.data) return false
+        return true
+      })
+      .sort((a, b) => (b.data || '').localeCompare(a.data || '') || b.id - a.id)
+    const totalLancsFiltrados = lancsFiltrados.reduce((acc, l) => acc + l.valor, 0)
 
     switch (abaAtiva) {
       case 0:
@@ -476,7 +631,7 @@ export default function App() {
             <div className="card kpi-card"><h3>Total de Barbeiros</h3><p className="kpi-value">{barbeiros.length}</p></div>
           </section>
         )
-      case 1:
+      case 1: // GERENCIAR E EDITAR UNIDADES & EQUIPE
         return (
           <div className="grid-duplo">
             <section className="card big-card">
@@ -602,6 +757,10 @@ export default function App() {
                   </select>
                 </div>
                 <div className="form-group">
+                  <label>Data do lançamento</label>
+                  <input type="date" value={lancamentoValor.data} onChange={(e) => setLancamentoValor({ ...lancamentoValor, data: e.target.value })} required />
+                </div>
+                <div className="form-group">
                   <label>Valor (R$)</label>
                   <input type="number" step="0.01" placeholder="Ex: 80.00" value={lancamentoValor.valor} onChange={(e) => setLancamentoValor({ ...lancamentoValor, valor: e.target.value })} required />
                 </div>
@@ -631,6 +790,79 @@ export default function App() {
           </div>
         )
       case 3:
+        return (
+          <section className="card big-card">
+            <h2>📜 Histórico de Lançamentos</h2>
+            <p className="subtitle">Edite ou apague um lançamento e o faturamento do barbeiro é recalculado na hora.</p>
+
+            <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', alignItems: 'center', margin: '12px 0' }}>
+              {temVariasUnidades && (
+                <select value={filtroHist.unidade} onChange={(e) => setFiltroHist({ ...filtroHist, unidade: e.target.value })} className="select-input" style={{ maxWidth: '240px' }}>
+                  <option value="TODAS">🌐 Todas as unidades</option>
+                  {unidades.map(u => <option key={u.id} value={u.nome}>📍 {u.nome}</option>)}
+                </select>
+              )}
+              <input type="date" value={filtroHist.data} onChange={(e) => setFiltroHist({ ...filtroHist, data: e.target.value })} style={{ maxWidth: '180px' }} />
+              <button type="button" onClick={() => setFiltroHist({ unidade: 'TODAS', data: '' })} className="btn-sm btn-gold">Limpar filtros</button>
+            </div>
+
+            <div style={{ overflowX: 'auto' }}>
+              <table className="custom-table">
+                <thead><tr><th>Data</th><th>Barbeiro</th><th>Unidade</th><th>Valor</th><th>Ações</th></tr></thead>
+                <tbody>
+                  {lancsFiltrados.length === 0 && (
+                    <tr><td colSpan={5}>Nenhum lançamento encontrado.</td></tr>
+                  )}
+                  {lancsFiltrados.map(l => {
+                    const bb = barbeiros.find(b => b.id === l.barbeiroId)
+                    const emEdicao = editandoLancId === l.id
+                    return (
+                      <tr key={l.id}>
+                        <td>
+                          {emEdicao
+                            ? <input type="date" value={lancEdit.data} onChange={(e) => setLancEdit({ ...lancEdit, data: e.target.value })} className="input-inline" />
+                            : formatarData(l.data)}
+                        </td>
+                        <td>
+                          {emEdicao ? (
+                            <select value={lancEdit.barbeiroId} onChange={(e) => setLancEdit({ ...lancEdit, barbeiroId: e.target.value })} className="select-input">
+                              {barbeiros.map(b => <option key={b.id} value={b.id}>{b.nome} ({b.unidade})</option>)}
+                            </select>
+                          ) : <strong>{bb ? bb.nome : '(barbeiro removido)'}</strong>}
+                        </td>
+                        <td>{bb ? bb.unidade : '-'}</td>
+                        <td className="gold-txt">
+                          {emEdicao
+                            ? <input type="number" step="0.01" value={lancEdit.valor} onChange={(e) => setLancEdit({ ...lancEdit, valor: e.target.value })} className="input-inline" />
+                            : `R$ ${(l.valor / 100).toFixed(2)}`}
+                        </td>
+                        <td>
+                          {emEdicao ? (
+                            <div className="action-buttons-grid">
+                              <button onClick={() => salvarEdicaoLancamento(l.id)} className="btn-sm btn-green">Salvar</button>
+                              <button onClick={() => setEditandoLancId(null)} className="btn-sm btn-red">Cancelar</button>
+                            </div>
+                          ) : (
+                            <div className="action-buttons-grid">
+                              <button onClick={() => iniciarEdicaoLancamento(l)} className="btn-sm btn-gold">Editar</button>
+                              <button onClick={() => apagarLancamento(l)} className="btn-sm btn-red">Apagar</button>
+                            </div>
+                          )}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                  <tr>
+                    <td colSpan={3}><strong>Total do filtro</strong></td>
+                    <td className="gold-txt" colSpan={2}><strong>R$ {(totalLancsFiltrados / 100).toFixed(2)}</strong></td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <p className="subtitle" style={{ marginTop: '10px' }}>Obs.: o faturamento acumulado dos barbeiros inclui valores anteriores a este histórico, que não aparecem na lista.</p>
+          </section>
+        )
+      case 4:
         return (
           <div className="grid-duplo">
             <section className="card big-card">
@@ -716,7 +948,7 @@ export default function App() {
             </section>
           </div>
         )
-      case 4:
+      case 5:
         return (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
             <section className="card big-card" style={{ border: '2px solid #C6A15B' }}>
@@ -767,6 +999,8 @@ export default function App() {
             )}
           </div>
         )
+      case 6:
+        return renderConfiguracao()
       default:
         return null
     }
@@ -774,6 +1008,7 @@ export default function App() {
 
   // PAINEL DO BARBEIRO
   const renderConteudoBarbeiro = () => {
+    // Usa os dados mais recentes do barbeiro (reflete edições de nome/unidade)
     const barbeiroAtual = barbeiros.find(b => b.id === barbeiroLogado?.id) || barbeiroLogado
     const barbeirosDaMinhaUnidade = barbeiros.filter(b => b.unidade === barbeiroAtual?.unidade)
     const mBarbLogado = metasIndividuaisPorBarbeiro[barbeiroAtual?.id] || {
@@ -848,6 +1083,8 @@ export default function App() {
             </ul>
           </section>
         )
+      case 3:
+        return renderConfiguracao()
       default:
         return null
     }
